@@ -408,3 +408,47 @@ stairs and town music (not shops); `fnmatch()` replaces 3.4.3's `pmatch`; in the
 browser pane send `<`/`>` via `KeyboardEvent` dispatch; `deleteDatabase` from the
 game's own page returns "blocked" — close it and delete from a plain page on the
 same origin.
+
+### Stage 7 (publish) — done 2026-09-26
+- **Explore fix first** (`bf2a0200`): autoexplore never pushes boulders
+  (`test_move` DO_MOVE with `flags.run >= 2` → "A boulder blocks your way.",
+  no turn), yet its travel path went through them (TEST_TRAV "assume you'll be
+  able to push it"). Now TEST_TRAV refuses boulders while `iflags.autoexplore`
+  (`hack.c`, 1 line), so explore paths around or ends "Partly explored".
+  Browser test (local, temporary patches for boulders in corridors/doorways +
+  999 HP, reverted): explore ran, no boulder bump, no console errors. The
+  stage-6 bump itself was not reproduced even without the fix (boulders block
+  sight, so a target beyond one is rarely known) — logic-checked only.
+- Repo https://github.com/memmaker/dynahack (remote `memmaker`, branch
+  `unnethack`), base `25aaf2a` (tung/DynaHack, marker `2cacdfa1`); `README.md`
+  head (`2d86eb7b`) links https://github.com/tung/DynaHack/tree/25aaf2a and the
+  compare view `25aaf2a...unnethack`, lists what the port adds; upstream README
+  kept below.
+- Live: https://ruzzoli.de/roguelikes/dynahack/ (`web/build.sh` +
+  `web/deploy.sh` from pushed `2d86eb7b`). curl 200: page, `.wasm`, `.js`,
+  `.data`, help.html, tiles.png, sound/*.wav. Own tab: role menu → born
+  (neutral human Valkyrie "Tpub") → `v` explored; then only the `/dynahack`
+  IndexedDB on ruzzoli.de deleted from help.html ("ok"), tab closed.
+- Selection page (`index: DynaHack card + tree`): card `dynahack.png` (60
+  monster tiles from our tiles.png, ×2 nearest), tag "NetHack4 / UnNetHack
+  variant · 2012", W1 version line, Play `dynahack/` (no Info yet). Tree: new
+  **NitroHack** (2011 · Daniel Thaler · from NetHack 3.4.3) under NetHack, with
+  children NetHack4 (2012 · Alex Smith, Sean Hunt; plain) and **DynaHack** (gold
+  link; 2012 · Tung Nguyen · NitroHack 4.0.4 with UnNetHack's content merged).
+  Deployed; live index = local.
+- **Lineage evidence:** `doc/changelog.txt` (0.5.0 entry: originally
+  "UnNitroHack" = UnNetHack ported onto NitroHack, later NetHack4/GruntHack/
+  UnNetHackPlus changes; "NitroHack 4.0.4 … is this version … that DynaHack is
+  based on"), `doc/nitrohack.txt`, `doc/unnitrohack.txt`; git history: Daniel
+  Thaler's NitroHack commits from 2011-03-31, Tung Nguyen's first 2012-03-01
+  (1268 commits). NetHackWiki: "a variant of NitroHack maintained by tungtn",
+  UnNetHack content transplanted onto NitroHack. **Disagreement:** first public
+  release is 0.5.0 on **2013-09-18** (changelog + wiki); we show 2012 (start of
+  work in git). NetHack4 is a sibling (also from NitroHack), not a code parent;
+  DynaHack only ported changes from it — the "NetHack4" in the tag means the
+  family/interface.
+- RVIP.md (rvip-tools, local commit `14bbe80`, not pushed): new Part O section
+  "O-DynaHack", case-table worked example, W2 row. `~/Games/RVIP-todo.md` row 6
+  → stage 7.
+- **Next: stage 8 shrine** (`~/Games/roguelikes-index/shrine/dynahack.html`),
+  then Info button + tree ✦.
