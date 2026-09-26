@@ -5,3 +5,5 @@ doc/Guidebook.txt
 *.kate-swp
 tags
 cscope.out
+web/dist/
+web/gen/

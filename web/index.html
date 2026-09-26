@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DynaHack</title>
+<style>
+	:root { --bg: #0b0b0d; --panel: #16161a; --line: #2b2b33; --text: #d8d8de; --dim: #8a8a96; --accent: #d9b24c;
+		--gut: #1d1d23; --gut-hover: #d9b24c; }
+	* { box-sizing: border-box; }
+	html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+		font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+	#bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--panel);
+		border-bottom: 1px solid var(--line); height: 32px; white-space: nowrap; overflow: hidden; }
+	#bar h1 { font-size: 14px; margin: 0 8px 0 0; color: var(--accent); letter-spacing: .04em; }
+	#bar h1 a { color: inherit; text-decoration: none; }
+	#bar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; flex: none; }
+	#bar .sp { flex: 1; }
+	#bar .ver { color: var(--dim); font-size: 11px; margin-left: 8px; }
+	#bar .hint { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+	button { background: #22222a; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+		padding: 2px 10px; font: inherit; cursor: pointer; }
+	button:hover { border-color: var(--accent); }
+	button.on { background: var(--accent); color: #000; border-color: var(--accent); }
+	#status { position: fixed; left: 50%; top: 40px; transform: translateX(-50%); z-index: 5;
+		background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; max-width: 90vw; }
+	#status.error { border-color: #b44; color: #f99; }
+
+	/* windows: map on top, messages and status below (placed by rvip-wm.js) */
+	#game { position: absolute; left: 0; right: 0; top: 32px; bottom: 0; overflow: hidden; background: var(--gut); }
+	.win { position: absolute; background: #000; border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+	.win > .t { flex: none; display: flex; align-items: center; font-size: 11px; height: 20px; padding: 0 2px 0 6px;
+		color: var(--dim); background: var(--panel); border-bottom: 1px solid var(--line); }
+	.win > .t .name { flex: 1; }
+	.win > .t button { padding: 0 5px; font-size: 11px; line-height: 14px; height: 16px; margin-left: 2px; }
+	.win > .body { flex: 1; min-height: 0; overflow: hidden; }
+	#t-msg .body { overflow-y: auto; }
+	.txt { margin: 0; padding: 2px 6px; color: #d7d7d7; font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; white-space: pre-wrap; }
+	.txt .old { color: var(--dim); }
+	.txt .pr { color: #ffff50; }
+	.row { white-space: pre; padding: 0 4px; }
+	.row.pick { cursor: pointer; }
+	.row.pick:hover { background: #22222a; }
+	.row.cur { background: #32326e; }
+	#pop .pp { color: #ffff50; padding: 2px 4px 4px; white-space: pre-wrap; }
+	.ti { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin-right: 5px;
+		background-image: url(tiles.png); image-rendering: pixelated; }
+	.so { background: #d7d7d7; color: #000; }
+	#map canvas { display: block; }
+	#pop { position: absolute; z-index: 3; background: #000; border: 1px solid var(--dim); box-shadow: 0 6px 24px rgba(0,0,0,.7);
+		max-height: 100%; overflow: auto; }
+	#pop[hidden] { display: none; }
+	.split { position: absolute; background: var(--gut); z-index: 2; cursor: row-resize; touch-action: none; }
+	.split.v { cursor: col-resize; }
+	#t-inv .body { overflow-y: auto; }
+	.split:hover, .split.drag { background: var(--gut-hover); }
+	#overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex;
+		align-items: center; justify-content: center; z-index: 10; }
+	#overlay[hidden], #status[hidden], #game[hidden] { display: none; }
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px 24px; max-width: 560px; }
+	.card h2 { margin: 0 0 10px; font-size: 16px; color: var(--accent); }
+	kbd { display: inline-block; min-width: 1.7em; padding: 0 6px; text-align: center; font: 600 12px/1.6 ui-monospace, Menlo, monospace;
+		background: #22222a; border: 1px solid #3a3a46; border-bottom-width: 2px; border-radius: 4px; color: var(--text); }
+
+</style>
+</head>
+<body>
+<div id="bar">
+	<h1>DynaHack</h1>
+	<button id="btn-zoom-out" title="Smaller map">Zoom −</button>
+	<button id="btn-zoom-in" title="Bigger map">Zoom +</button>
+	<button id="btn-layout" title="Windows: layout, show and hide">Windows ▾</button>
+	<span class="sep"></span>
+	<button id="btn-export" title="Download the game log (.nhgame)">Export save</button>
+	<button id="btn-import" title="Load a save file from disk">Import save</button>
+	<button id="btn-new" title="Delete the saved game in this browser and start a new character">New character</button>
+	<input type="file" id="import-file" hidden>
+	<span class="sp"></span>
+	<span class="hint">?: all commands · #: extended · v: explore · _: travel · i: inventory · S: save</span>
+	<span class="ver">Based on DynaHack 0.6.0 · tung/DynaHack @ 25aaf2a</span>
+</div>
+
+<div id="status">Loading DynaHack…</div>
+
+<div id="game" hidden>
+	<div class="win" id="t-map"><div class="t"><span class="name">Map</span></div><div class="body" id="map"><canvas></canvas></div></div>
+	<div class="win" id="t-msg"><div class="t"><span class="name">Log messages</span></div><div class="body"><pre class="txt" id="msg"></pre></div></div>
+	<div class="win" id="t-stat"><div class="t"><span class="name">Status</span></div><div class="body"><pre class="txt" id="stat"></pre></div></div>
+	<div class="win" id="t-inv"><div class="t"><span class="name">Inventory</span></div><div class="body"><div class="txt" id="inv"></div></div></div>
+	<div class="txt" id="pop" hidden></div>
+</div>
+
+<div id="overlay" hidden>
+	<div class="card">
+		<h2>DynaHack has ended</h2>
+		<p id="overlay-msg">Your game has been saved.</p>
+		<button id="btn-restart">Play again</button>
+	</div>
+</div>
+
+<script src="rvip-wm.js"></script>
+<script src="dynahack.js"></script>
+<script src="dynahack-core.js"></script>
+</body>
+</html>
