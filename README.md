@@ -1,3 +1,28 @@
+**RVIP port** of DynaHack 0.6.0, upstream
+[tung/DynaHack @ `25aaf2a`](https://github.com/tung/DynaHack/tree/25aaf2a)
+(branch `unnethack`). Play: https://ruzzoli.de/roguelikes/dynahack/
+Our changes: https://github.com/memmaker/dynahack/compare/25aaf2a...unnethack
+
+What this port adds (the game library `libnitrohack/` is nearly untouched):
+- **Web client** `web/webwin.c` (window procs + command loop, in place of the
+  curses client `nitrohack/`), page `web/index.html` + `web/dynahack.js`:
+  map, messages, status, inventory and visible-monster windows.
+- **Explore** `v` / `~` (DynaHack's autoexplore; stops on new messages, paths
+  around boulders); `<` / `>` walk to the nearest known stairs (`do.c`).
+- **Enter menu** of every command (from `nh_get_commands()`).
+- **Inventory** `i`: cursor list, letter = main use, Enter = item menu.
+- **Tiles**: NetHack 3.4.3-style 16x16 set (as shipped with SLASH'EM),
+  `web/mktiles.py`.
+- **Recovery**: the running game log lives in IndexedDB; a closed tab is
+  replayed back to the same turn.
+- **Sound** (off by default): message-driven effects, synthesized wavs
+  (`web/mksounds.py`, CC0).
+
+Build: `sh web/build.sh` → `web/dist` (needs emcc, node, bison, flex).
+Deploy: `sh web/deploy.sh`. Notes: `HANDOVER.md`.
+
+---
+
 DynaHack
 ========
 
