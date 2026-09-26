@@ -909,7 +909,14 @@ int command_input(int cmdidx, int rep, struct nh_cmd_arg *arg)
 	    return READY_FOR_INPUT;
 	}
 	
-	if (flags.mv) {
+	if (flags.mv && iflags.rvip_stairs && flags.travel &&
+	    u.ux == u.tx && u.uy == u.ty) {
+	    /* RVIP: arrived at the stairs '<'/'>' walked to: take them */
+	    boolean up = iflags.rvip_stairs == '<';
+	    nomul(0, NULL);
+	    if (!(up ? doup() : dodown()))
+		flags.move = FALSE;
+	} else if (flags.mv) {
 	    if (multi < COLNO && !--multi)
 		flags.travel = iflags.travel1 = flags.mv = flags.run = 0;
 	    if (!domove(u.dx, u.dy, 0)) {

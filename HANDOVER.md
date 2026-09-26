@@ -106,3 +106,55 @@ client in place of `nitrohack/` (window procs + command loop, ~1000 lines);
 `xmalloc()` results die after the next API call; the `.nhgame` log gives
 crash-proof autosave if IDBFS syncs while idle; a headless random-key stub
 build of the web client makes native ASan cheap; `DIR` is a libc type name.
+
+### Stage 2 (explore + stairs) — done 2026-09-26
+- **Explore = DynaHack's own `autoexplore`**, key `v`, plus `~` as its altkey
+  (`libnitrohack/src/cmd.c` `cmdlist[]`; `~` was unbound). It already met
+  step 2 except one gap: BFS over the player's memory (`hack.c` `unexplored()`
+  on `mem_bg`/`mem_stepped`, `findtravelpath()`), one step per turn (multi
+  loop in `allmain.c` `command_input()`), stops on a hostile in view
+  (`lookaround()`), avoids seen traps, water, lava, swamp (`test_move()` with
+  `flags.run == 8`), skips boulders and known-locked doors (`mem_door_l`),
+  opens doors by walking into them (`domove()` → `doopen()`, "This door is
+  locked." and no lock picking). **Added:** any new message stops it —
+  `pline.c` `vpline()`: `multi > 0 && flags.travel && (iflags.autoexplore ||
+  iflags.rvip_stairs)` → `nomul(0)`.
+- **Key interrupt** was already in stage 1: `web/webwin.c` `commandloop()`
+  passes `count = -1` to `nh_command()` when `js_key(1,0)` sees a waiting key
+  during `MULTI_IN_PROGRESS`; `command_input()` then `nomul`s. Logged, so
+  replays stay deterministic.
+- **Stairs:** `do.c` `walk_to_stairs(up)` called where `doup()`/`dodown()`
+  would say "You can't go up/down here." (after the pit/trapdoor checks):
+  nearest (straight-line) of `upstair`/`upladder`/`sstairs` (or `dn…`) whose
+  remembered `mem_bg` is a stair/ladder symbol = "known grid" test; sets
+  `u.tx/u.ty` + travel flags like `dotravel()`, `iflags.rvip_stairs = '<'/'>'`
+  (new field, `include/flag.h`). Arrival: `allmain.c` `command_input()` multi
+  branch, at `u.tx/u.ty` with travel still on → `nomul` + `doup()`/`dodown()`.
+  `nomul()` (`hack.c`) clears `rvip_stairs`, so any disturbance cancels;
+  pressing again resumes (or climbs when already there).
+- **Help:** `?` menu = `cmdlist[]` descriptions: autoexplore "explore (also ~)
+  until a monster, message or key stops it", move "…< > stairs, off them walk
+  to the nearest known ones"; header hint in `web/index.html`.
+- **Stage 1 bug fixed:** `webwin.c` `key_dir()` used SLASH'EM's `"hyku lnjb"`
+  (3.4.3 index order); NetHack4's `enum nh_direction` is W NW N NE E SE S SW,
+  so `l` went SE, `n` S, `j` SW, `b` = up. Now `"hykulnjb"`/`"47896321"`.
+- **Tested** (browser pane, own tab, port 8437, Valkyrie "rviptest"): `~`/`v`
+  explored Dlvl 1–3 (picked up gold/items, "The door opens.", "This door is
+  locked." once and not retried), stopped on grid bugs, lichens, rats, gnomes,
+  a hobbit (silent `lookaround` stop) and on every message; `<` walked 23
+  turns to the up stairs → "Still climb?" (n); `>` walked to the down stairs
+  and descended twice (Dlvl 2, 3); `>` + queued `s` = one step then search;
+  `?` lists the new texts; reload replayed the crashed game; no console
+  errors. `/dynahack` DB deleted.
+- **Open:** every message stops explore, including DynaHack's `[HP+1=…]`
+  regen notes and "You hear…", so explore needs many presses (RVIP rule; an
+  exemption for HP notes would help); a hostile that stays in view (sessile
+  ones excepted) stops every press after one step, silently; "nearest" stairs
+  by straight-line distance; levitating `>` still just says floating.
+- **Next: stage 3 (Enter menu + inventory).** DynaHack has its own item action
+  menu: `nh_get_object_commands(count, invlet)` (`cmd.c:1392`) lists the
+  commands that fit an item, and `i`/`I` open the inventory with
+  `PICK_INVACTION` (`invent.c` `display_inventory()`, `dotypeinv()`); the
+  curses client (`nitrohack/src/menu.c`) turns a pick into that action menu —
+  `webwin.c` still shows a plain list. Enter is free at the command prompt;
+  the `?` command menu (`cmd_menu()`) is the base for the Enter menu.

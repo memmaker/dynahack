@@ -117,6 +117,10 @@ static void vpline(const char *line, va_list the_args)
 	if (repeated && (no_repeat || mtact == MSGTYPE_NO_REPEAT))
 	    return;
 
+	/* RVIP: any new message stops autoexplore and the stairs walk */
+	if (multi > 0 && flags.travel && (iflags.autoexplore || iflags.rvip_stairs))
+	    nomul(0, NULL);
+
 	if (vision_full_recalc)
 	    vision_recalc(0);
 	if (u.ux)

@@ -801,6 +801,43 @@ drop_done:
 /* on a ladder, used in goto_level */
 static boolean at_ladder = FALSE;
 
+/* RVIP: '<'/'>' off the stairs: walk to the nearest known staircase or
+ * ladder of that kind with the travel code; command_input() takes it on
+ * arrival. Known = remembered as stairs on the map. */
+static int walk_to_stairs(boolean up)
+{
+	const stairway *s[3];
+	int i, best = -1, d, bd = 0;
+
+	s[0] = up ? &level->upstair : &level->dnstair;
+	s[1] = up ? &level->upladder : &level->dnladder;
+	s[2] = level->sstairs.up == up ? &level->sstairs : NULL;
+	for (i = 0; i < 3; i++) {
+	    int bg;
+	    if (!s[i] || !s[i]->sx) continue;
+	    bg = level->locations[s[i]->sx][s[i]->sy].mem_bg;
+	    if (bg != S_upstair && bg != S_dnstair && bg != S_upsstair &&
+		bg != S_dnsstair && bg != S_upladder && bg != S_dnladder)
+		continue;
+	    /* ponytail: straight-line distance, not path length */
+	    d = distmin(u.ux, u.uy, s[i]->sx, s[i]->sy);
+	    if (best < 0 || d < bd) best = i, bd = d;
+	}
+	if (best < 0 || Stunned || Confusion)
+	    return -1;
+	u.tx = s[best]->sx;
+	u.ty = s[best]->sy;
+	iflags.autoexplore = FALSE;
+	flags.travel = iflags.travel1 = 1;
+	flags.run = 8;
+	flags.nopick = TRUE;
+	flags.mv = TRUE;
+	multi = max(COLNO, ROWNO);
+	u.last_str_turn = 0;
+	iflags.rvip_stairs = up ? '<' : '>';
+	return domove(0, 0, 0);
+}
+
 int dodown(void)
 {
 	struct trap *trap = 0;
@@ -850,6 +887,8 @@ int dodown(void)
 				uwep && is_pick(uwep)) {
 				return use_pick_axe2(uwep, 0, 0, 1);
 			} else {
+				int r = walk_to_stairs(FALSE);
+				if (r >= 0) return r;
 				pline("You can't go down here.");
 				return 0;
 			}
@@ -916,8 +955,11 @@ int doup(void)
 	     && (!level->sstairs.sx || u.ux != level->sstairs.sx || u.uy != level->sstairs.sy
 			|| !level->sstairs.up)
 	  ) {
+		int r;
 		if (try_escape_trap(u.ux, u.uy, 0, 0))
 			return 1;
+		if ((r = walk_to_stairs(TRUE)) >= 0)
+			return r;
 		pline("You can't go up here.");
 		return 0;
 	}

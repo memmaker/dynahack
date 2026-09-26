@@ -527,10 +527,10 @@ static void web_level_changed(int displaymode) {}
 
 static enum nh_direction key_dir(int k)
 {
-    static const char keys[] = "hyku lnjb", num[] = "478963214";
+    static const char keys[] = "hykulnjb", num[] = "47896321"; /* DIR_W..DIR_SW */
     const char *p;
 
-    if (k && (p = strchr(keys, k)) && *p != ' ')
+    if (k && (p = strchr(keys, k)))
         return (enum nh_direction)(p - keys);
     if (k && (p = strchr(num, k)))
         return (enum nh_direction)(p - num);

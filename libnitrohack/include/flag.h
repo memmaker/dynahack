@@ -175,6 +175,7 @@ struct instance_flags {
 	boolean  disable_log;   /* don't append anything to the logfile */
 	boolean  botl;		/* redo status line */
 	boolean  autoexplore;	/* currently autoexploring */
+	char	 rvip_stairs;	/* '<'/'>': walking to stairs, take them on arrival */
 	struct nh_autopickup_rules *ap_rules;
 	struct nh_msgtype_rules *mt_rules;
 };

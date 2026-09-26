@@ -63,7 +63,7 @@ const struct cmd_desc cmdlist[] = {
 	{"annotate", "name the current level", 0, C('f'), TRUE, donamelevel, CMD_ARG_NONE | CMD_EXT},
 	{"apply", "use a tool or dip into a potion", 'a', 0, FALSE, doapply, CMD_ARG_NONE | CMD_ARG_OBJ},
 	{"attributes", "show your attributes", C('x'), 0, TRUE, doattributes, CMD_ARG_NONE},
-	{"autoexplore", "automatically explore until something happens", 'v', 0, FALSE, doautoexplore, CMD_ARG_NONE},
+	{"autoexplore", "explore (also ~) until a monster, message or key stops it", 'v', '~', FALSE, doautoexplore, CMD_ARG_NONE},
 	{"cast", "cast a spell from memory", 'Z', 0, TRUE, docast, CMD_ARG_NONE},
 	{"chat", "talk to someone", 'c', M('c'), TRUE, dotalk, CMD_ARG_NONE | CMD_EXT},	/* converse? */
 	{"close", "close a door", 0, 0, FALSE, doclose, CMD_ARG_DIR},
@@ -141,7 +141,7 @@ const struct cmd_desc cmdlist[] = {
 	{"whatisinv", "describe an object in your inventory", 0, 0, TRUE, dowhatisinv, CMD_HELP | CMD_ARG_NONE | CMD_ARG_OBJ | CMD_NOTIME},
 	{"zap", "zap a wand to use its magic", 'z', 0, FALSE, dozap, CMD_ARG_NONE | CMD_ARG_OBJ},
 	
-	{"move", "move one step", 0, 0, FALSE, domovecmd, CMD_ARG_DIR | CMD_MOVE},
+	{"move", "move one step; < > stairs, off them walk to the nearest known ones", 0, 0, FALSE, domovecmd, CMD_ARG_DIR | CMD_MOVE},
 	{"move nopickup", "move, but don't fight or pick anything up", 'm', 0, FALSE, domovecmd_nopickup, CMD_ARG_DIR | CMD_MOVE},
 	{"run", "run until something interesting is seen", 0, 0, FALSE, dorun, CMD_ARG_DIR | CMD_MOVE},
 	{"run nopickup", "run without picking anything up", 0, 'M', FALSE, dorun_nopickup, CMD_ARG_DIR | CMD_MOVE},

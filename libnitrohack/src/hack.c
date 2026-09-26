@@ -2866,6 +2866,7 @@ void nomul(int nval, const char *txt)
 	else
 	    memset(multi_txt, 0, BUFSZ);
 	flags.travel = iflags.travel1 = flags.mv = flags.run = 0;
+	iflags.rvip_stairs = 0;	/* a disturbance cancels the stairs walk */
 }
 
 /* called when a non-movement, multi-turn action has completed */
