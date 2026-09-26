@@ -1433,7 +1433,7 @@ enum nh_log_status nh_get_savegame_status(int fd, struct nh_game_info *gi)
     n2 = sscan_llx(header + n, &starttime);
     if (!n2) return LS_INVALID;
     n += n2;
-    if (sscanf(header + n, "%x %x %64s %16s %16s %16s %16s",
+    if (sscanf(header + n, "%x %x %63s %15s %15s %15s %15s",
 	       &seed, &playmode, encplname, role, race, gend, algn) < 7)
 	return LS_INVALID;
 
