@@ -132,9 +132,12 @@ int done_in_by_format(const struct monst *mtmp, char *buf)
 }
 
 
+static const char *killer_mon;	/* RVIP run beacon: the killer's species name */
+
 void done_in_by(const struct monst *mtmp)
 {
 	char buf[BUFSZ];
+	killer_mon = mons_mname(mtmp->data);
 	killer_format = done_in_by_format(mtmp, buf);
 	killer = buf;
 
@@ -703,8 +706,10 @@ void done(int how)
 	long umoney;
 	const char *dumpname;
 
-	if (check_survival(how, killbuf))
+	if (check_survival(how, killbuf)) {
+	    killer_mon = NULL;
 	    return;
+	}
 	
 	/* replays are done here: no dumping or high-score calculation required */
 	if (program_state.viewing)
@@ -825,6 +830,19 @@ void done(int how)
 	/* generate a topten entry for this game.
 	   update_topten does not display anything. */
 	update_topten(how, dumpname ? dumpname : "");
+#ifdef __EMSCRIPTEN__
+	{   /* run beacon (web/webwin.c); score = u.urscore, as topten keeps it */
+	    void js_beacon(const char *, const char *, const char *, const char *, int, int, int, int);
+	    const char *k = how == ASCENDED || how == DEFIED || how == QUIT || how == ESCAPED ? NULL :
+			    killer_mon ? killer_mon : killbuf;
+	    if (k && !strncmp(k, "a ", 2)) k += 2;
+	    else if (k && !strncmp(k, "an ", 3)) k += 3;
+	    else if (k && !strncmpi(k, "the ", 4)) k += 4;
+	    js_beacon("dynahack", how == ASCENDED || how == DEFIED ? "win" :
+		      how == QUIT || how == ESCAPED ? "quit" : "death",
+		      plname, k, depth(&u.uz), (int) u.urscore, (int) moves, u.ulevel);
+	}
+#endif
 
 	terminate();
 }

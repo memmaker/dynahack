@@ -51,6 +51,18 @@ EM_JS(int, js_key, (int peek, int at_cmd), { return Module.nh.key(peek, at_cmd);
 EM_ASYNC_JS(void, js_end, (void), { await Module.nh.end(); });
 EM_JS(void, js_sound, (const char *name), { Module.nh.sound(UTF8ToString(name)); });
 EM_JS(void, js_music, (int on), { Module.nh.music(on); });
+/* Run report (roguelikes-index/server/CONTRACT.md), called from
+   libnitrohack/src/end.c done(): fire-and-forget GET, never throws,
+   offline just fails silently. Negative ints are omitted. */
+EM_JS(void, js_beacon, (const char *g, const char *ev, const char *name, const char *killer, int depth, int score, int turns, int lvl), {
+    try {
+        var p = [['g', UTF8ToString(g)], ['ev', UTF8ToString(ev)], ['name', name ? UTF8ToString(name) : ''],
+                 ['killer', killer ? UTF8ToString(killer) : ''], ['depth', depth], ['score', score], ['turns', turns], ['lvl', lvl]];
+        var q = p.filter(function (a) { return a[1] !== '' && !(a[1] < 0); })
+                 .map(function (a) { return a[0] + '=' + encodeURIComponent(a[1]); }).join('&');
+        fetch('/roguelikes/beacon?' + q, { keepalive: true, mode: 'no-cors' }).catch(function () {});
+    } catch (e) {}
+});
 #define idle() emscripten_sleep(15)
 #define web_delay() emscripten_sleep(50)
 /* let the browser run (keys, drawing) during multi-turn actions */
