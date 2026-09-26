@@ -452,3 +452,33 @@ same origin.
   → stage 7.
 - **Next: stage 8 shrine** (`~/Games/roguelikes-index/shrine/dynahack.html`),
   then Info button + tree ✦.
+
+### Stage 8 (shrine) — done 2026-09-26
+- Page `~/Games/roguelikes-index/shrine/dynahack.html` + `shrine/dynahack/`
+  (`Guidebook.txt` = the NetHack 3.4.3 Guidebook shipped unchanged in `doc/`,
+  converted from `Guidebook.tex` with pandoc (no nroff here; `\vbox` and
+  `\documentstyle` patched, title page lost); `changelog.txt` = `doc/changelog.txt`
+  (the real DynaHack change list); `license.txt` = `libnitrohack/dat/license`,
+  NGPL). No screenshots. Linked from the card (Info), the tree (✦) and
+  `web/index.html` `#bar h1`.
+- Sources: README.md, `doc/changelog.txt` (0.6.0 = 2016-02-17, 0.5.0 =
+  2013-09-18 first public), `doc/nitrohack.txt`, `doc/unnitrohack.txt`, git
+  shortlog at 25aaf2a (Tung Nguyen 1268, Daniel Thaler 748, Patric Müller 26);
+  fetched: NetHackWiki DynaHack, github.com/tung/DynaHack, RogueBasin DynaHack.
+  Counts from upstream `25aaf2a` (git archive): 147,539 lines in 166
+  `libnitrohack/src/*.c include/*.h`; 14 roles, 6 races (`role.c`), NUMMONS 403
+  (`web/gen/include/pm.h`), 538 object slots (named per class from
+  `web/gen/symbols.tsv`), 36 artifacts, 40 spells, 24 traps (TRAPNUM 25 − NO_TRAP),
+  12 dungeons (`dat/dungeon.def`), 184 MAZE/LEVEL maps in `dat/*.des`.
+- Disagreements kept on the page: RogueBasin dates 0.5.0 = 2013-09-22 and
+  0.6.0 = 2016-02-18 vs changelog/NetHackWiki 09-18 / 02-17.
+- "Randomized equipment" in the README = random magical properties (GruntHack
+  `ITEM_*` oprops), not a random starting kit (`u_init.c` = NetHack-style lists).
+- Unverified: Sean Hunt as NetHack4 co-author (from the stage-7 tree entry, not
+  re-fetched); Advent Calendar trigger condition not checked (only that the
+  branch exists, portal on DL 1–5).
+- Manual: only the vanilla 3.4.3 Guidebook (never updated for DynaHack) +
+  changelog. Walkthrough: none; NetHackWiki DynaHack + vanilla "Standard
+  strategy" linked. Cheats: wizard/explore/tutorial are `nh_start_game()` modes;
+  `webwin.c` always passes MODE_NORMAL, no in-game #explore; Export/Import
+  rewinds (log save). No exploits listed (none fetched).
