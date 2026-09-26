@@ -355,3 +355,56 @@ Suggested RVIP.md lessons (not edited): NetHack4-family `nh_describe_pos()`
 changes game state (mksobj) → never call it from a client that relies on log
 replay; the browser pane doesn't fire `resize`/ResizeObserver for a background
 tab under `resize_window`; restore saved zoom before the first `measure()`.
+
+### Stage 6 (docs + sound) — done 2026-09-26
+- **Docs:** `~/Desktop/Games/Roguelikes/Docs/` entry `dynahack.html` (`build-docs.py`
+  GAMES: facts per W1 = DynaHack 0.6.0, tung/DynaHack @ 25aaf2a, web only, NetHack
+  3.4.3 tiles via SLASH'EM at 16 px, sound off by default; essentials incl. `v`/`~`,
+  `<`/`>` walking, `_`, Enter, `i`, `^O` overview, `^E` Elbereth; Tips; "In the
+  browser"). New `parse_dynahack()` reads `libnitrohack/src/cmd.c` `cmdlist[]`
+  (debug commands skipped, keyless → `#name`, an altkey that is a move letter or
+  another command's key is dropped: `j`/`k`/`l`/`u`/`M` stay movement/their own)
+  + 8 hand-written movement rows = 92 keys. `guides.py`: guide (differences, first
+  steps, staying alive) + web "Saving" (log autosave, reload resumes at the same
+  turn, `S`, Export/Import). Sources: nethackwiki DynaHack page, repo README
+  (own words). `python3 build-docs.py` rebuilt all 31 pages.
+- **Help:** `web/make-help.py` (SLASH'EM's, renamed; key hints `v / ~`, `Enter / ?`;
+  web notes; "About this version" links tung/DynaHack/tree/25aaf2a and
+  memmaker/dynahack). `build.sh` always writes `dist/help.html` (7 sections).
+- **Sound (client side, library untouched):** `web/webwin.c` `sound_msg()` in
+  `add_msg()` matches each message against `msgsnd[]` with `fnmatch()` (SLASH'EM's
+  pattern list) → `js_sound(name)`; `sound_level()` in `web_update_status()` plays
+  `stairs` when `z + levdesc_short` changes and sets town music on "Mine Town",
+  "Town" (UnNetHack town branch) and "BlackMrkt". **Shops: no music** — the API
+  has no shop flag and the client can't see `u.ushops`. Log replay on reload is
+  silent (no window-proc messages during replay). JS (`web/dynahack.js`):
+  `nh.sound/nh.music`, top-bar Sound/Music toggles, `sound`/`music` in
+  `web-layout.json`, default off; `sound/town.wav` loaded on first play only;
+  shared `rvip-sound.js` copied unchanged by build.sh.
+- **Wavs:** `web/mksounds.py` (copy of SLASH'EM's) synthesizes 11 wavs at build
+  time into `dist/sound/` (hit kill miss hurt die levelup hear door gold stairs
+  town): our own work, CC0.
+- **Tested** (own tab, 127.0.0.1:8471, Valkyrie "Tsnd"): Help → 7 sections,
+  92-key list, both links; Escape closes and doesn't reach the game. Sound/Music
+  "off" at start, 0 wav requests; Sound on → gold, miss, hear, door ("The door
+  opens."), hurt ("The newt bites!"), kill, stairs (Dlvl 1 → 2) fetched; reload →
+  "Sound: on" kept, replay played nothing; Music on + `nh.music(1)` → town.wav
+  loaded only then. No console errors. `/dynahack` DB deleted, tab closed, server
+  killed.
+- **Open:** no shop music (above); music on real Mine Town/Town/Black Market not
+  heard in play (levdesc strings checked in `botl.c` only); patterns cover the
+  common hit/miss/kill texts only; explore bumped a boulder ("A boulder blocks
+  your way." ×12, no turn used) until I pushed it by hand — stage 2 said it skips
+  boulders; the browser pane's `key` tool can't send `>`/`<` (use a dispatched
+  `KeyboardEvent`), and `type` sends nothing to this page.
+- **Next: stage 7 publish:** README (upstream commit link + compare view
+  `memmaker/dynahack/compare/25aaf2a...main`), `gh repo create memmaker/dynahack`
+  + push, `web/deploy.sh`, card (`Based on DynaHack 0.6.0 · tung/DynaHack @
+  25aaf2a`) + tree entry on the selection page, RVIP.md self-improve.
+
+Suggested RVIP.md lessons (not edited): NetHack4-family sound needs no library
+patch — the client's message proc + `nh_player_info.levdesc_short` cover effects,
+stairs and town music (not shops); `fnmatch()` replaces 3.4.3's `pmatch`; in the
+browser pane send `<`/`>` via `KeyboardEvent` dispatch; `deleteDatabase` from the
+game's own page returns "blocked" — close it and delete from a plain page on the
+same origin.

@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <fnmatch.h>
 #include "nitrohack.h"
 
 #ifdef __EMSCRIPTEN__
@@ -48,6 +49,8 @@ EM_JS(void, js_text, (int id, const char *s),
       { Module.nh.text(id, UTF8ToString(s)); });
 EM_JS(int, js_key, (int peek, int at_cmd), { return Module.nh.key(peek, at_cmd); });
 EM_ASYNC_JS(void, js_end, (void), { await Module.nh.end(); });
+EM_JS(void, js_sound, (const char *name), { Module.nh.sound(UTF8ToString(name)); });
+EM_JS(void, js_music, (int on), { Module.nh.music(on); });
 #define idle() emscripten_sleep(15)
 #define web_delay() emscripten_sleep(50)
 /* let the browser run (keys, drawing) during multi-turn actions */
@@ -76,6 +79,8 @@ static int js_key(int peek, int at_cmd)
     return (unsigned char) pool[rand() % (sizeof pool - 1)];
 }
 static void js_end(void) {}
+static void js_sound(const char *name) {}
+static void js_music(int on) {}
 #define idle() ((void) 0)
 #define web_delay() ((void) 0)
 #define yield_sometimes() ((void) 0)
@@ -309,10 +314,56 @@ static int getkey(void)
 
 /* ---------- messages ---------- */
 
+/* ---------- sound (RVIP 6b): messages pick the effect (the USER_SOUNDS
+ * idea, built in); web/dynahack.js plays sound/<name>.wav (web/mksounds.py)
+ * only if the Sound button is on ---------- */
+static const struct { const char *pat, *name; } msgsnd[] = {
+    { "You die*", "die" },
+    { "You kill *", "kill" }, { "You destroy *", "kill" },
+    { "You hit *", "hit" }, { "You smite *", "hit" },
+    { "You miss *", "miss" }, { "* misses*", "miss" },
+    { "* hits!*", "hurt" }, { "* bites!*", "hurt" }, { "* stings!*", "hurt" },
+    { "* butts!*", "hurt" }, { "* kicks!*", "hurt" }, { "* touches you!*", "hurt" },
+    { "* claws you!*", "hurt" }, { "* suck you!*", "hurt" },
+    { "Welcome to experience level *", "levelup" },
+    { "You hear *", "hear" },
+    { "*door opens.*", "door" }, { "*door closes.*", "door" },
+    { "*gold piece*", "gold" },
+};
+
+static void sound_msg(const char *msg)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof msgsnd / sizeof *msgsnd; i++)
+        if (!fnmatch(msgsnd[i].pat, msg, 0)) {
+            js_sound(msgsnd[i].name);
+            return;
+        }
+}
+
+/* each status update: stairs on a level change; town music on Mine Town,
+ * the Town and the Black Market (the API has no shop flag, so no shops) */
+static void sound_level(const struct nh_player_info *pi)
+{
+    static char last[COLNO + 16];
+    char now[COLNO + 16];
+
+    snprintf(now, sizeof now, "%d %s", pi->z, pi->levdesc_short);
+    if (!strcmp(now, last))
+        return;
+    if (*last)
+        js_sound("stairs");
+    strcpy(last, now);
+    js_music(!strncmp(pi->levdesc_short, "Mine Town", 9) || !strncmp(pi->levdesc_short, "Town", 4) ||
+             !strncmp(pi->levdesc_short, "BlackMrkt", 9));
+}
+
 static void add_msg(const char *s)
 {
     if (!*s)
         return;
+    sound_msg(s);
     if (nhist && !strcmp(s, hist_prev)) { /* repeat -> "message (xN)" */
         char fold[BUFSZ + 16];
 
@@ -662,6 +713,7 @@ static void web_update_status(struct nh_player_info *pi)
     else
         snprintf(st, sizeof st, "%d", pi->st);
     level_z = pi->z;
+    sound_level(pi);
     snprintf(statbuf, sizeof statbuf,
              "%s the %s  St:%s Dx:%d Co:%d In:%d Wi:%d Ch:%d  %s\n"
              "%s  $%d  HP:%d(%d) Pw:%d(%d) AC:%d Xp:%d/%d T:%d",

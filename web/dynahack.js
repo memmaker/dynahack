@@ -22,7 +22,7 @@
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var log = [], prompt = '', rects = {}, wm = null;
-	var L = { cell: 0, font: 13, wm: null, text: false }, LAYOUT = DIR + '/web-layout.json';
+	var L = { cell: 0, font: 13, wm: null, text: false, sound: false, music: false }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -116,7 +116,7 @@
 	}
 	function fonts() { ['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text }; } catch (e) { }
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true }; } catch (e) { }
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
 		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
 		wm = RvipWM({
@@ -140,8 +140,21 @@
 	}
 
 	function showMode() { $('btn-tiles').textContent = L.text ? 'Tiles: Text' : 'Tiles: NetHack'; }
-	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); showMode(); } }
+	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); showMode(); showAudio(); } }
+	/* ---------- sound (RVIP 6b): C names the effect (web/webwin.c), off by default ---------- */
+	var song = null, town = false;
+	function showAudio() {
+		$('btn-sound').textContent = 'Sound: ' + (L.sound ? 'on' : 'off');
+		$('btn-music').textContent = 'Music: ' + (L.music ? 'on' : 'off');
+		if (L.music && town) {     /* the music file loads on first play only */
+			if (!song) { song = new Audio('sound/town.wav'); song.loop = true; song.volume = 0.4; }
+			song.play().catch(function () { });
+		} else if (song) song.pause();
+	}
+	function toggleAudio(k) { L[k] = !L[k]; showAudio(); saveLayout(); }
 	var nh = {
+		sound: function (name) { if (L.sound) RVIPSound.play([name], 0.6); },
+		music: function (on) { town = !!on; showAudio(); },
 		map: function (cp, tp, hx, hy, lev) {
 			cells = Module.HEAP32.slice(cp >> 2, (cp >> 2) + COLNO * ROWNO);
 			chars = Module.HEAP32.slice(tp >> 2, (tp >> 2) + COLNO * ROWNO);
@@ -336,6 +349,8 @@
 			L.text = !L.text; showMode(); saveLayout(); draw();
 			[2, 3, 7].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
 		};
+		$('btn-sound').onclick = function () { toggleAudio('sound'); };
+		$('btn-music').onclick = function () { toggleAudio('music'); };
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {
 			b.addEventListener('mousedown', function (e) { e.preventDefault(); });
