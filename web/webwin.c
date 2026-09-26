@@ -8,7 +8,9 @@
  *            same cells as text (char | colour << 8, the game's own
  *            symbols from nh_get_drawing_info), cursor x/y, level
  *   js_text: 0 prompt, 1 status lines, 2 inventory, 3 pop-up, 4 new
- *            message, 5 messages so far are old, 6 replace last message.
+ *            message, 5 messages so far are old, 6 replace last message,
+ *            7 visible monsters, 8 prompt line over the map (question or
+ *            the newest message of this action).
  *            Rows are tab-separated (tile, letter, sel, colour, text).
  * Keys come from Module.nh.key(); Asyncify lets the game wait for them.
  * Without __EMSCRIPTEN__ the JS calls are stubs that feed random keys:
@@ -97,7 +99,7 @@ static int cells[ROWNO * COLNO], chars[ROWNO * COLNO];
 static int curx, cury, have_map, level_z;
 static struct pop *popup;
 static char promptbuf[BUFSZ * 2], statbuf[BUFSZ * 3];
-static char hist_prev[BUFSZ];
+static char hist_prev[BUFSZ], toplast[BUFSZ + 16]; /* toplast: newest message of this action, for the prompt line */
 static int hist_reps, nhist, at_cmd;
 static int qkey; /* one queued key, read before the browser's */
 static char next_cmd[32], objprompt[BUFSZ], objcur; /* menu choice; item prompt title + first candidate */
@@ -230,8 +232,25 @@ static void redraw(void)
                 chars[y * COLNO + x] = (unsigned char) s.ch | pal(s.color) << 8;
             }
         js_map(cells, chars, curx, cury, level_z);
+        /* Visible window: monsters on the map but the hero (names, colours and
+         * tiles from the game's drawing info; objects skipped: the API names
+         * them only through nh_describe_pos(), whose mksobj() would change the
+         * game state outside the log) */
+        tlen = 0, tadd("%s", "");
+        for (y = 0; y < ROWNO; y++)
+            for (x = 1; x < COLNO; x++) {
+                struct nh_dbuf_entry *e = &dbuf[y][x];
+
+                if (!e->mon || e->mon > di->num_monsters || (x == curx && y == cury))
+                    continue;
+                tadd("%d\t \t0\t%d\t%s%s%s\n", tile_mon[e->mon - 1], pal(di->monsters[e->mon - 1].color),
+                     e->monflags & MON_TAME ? "tame " : e->monflags & MON_PEACEFUL ? "peaceful " : "",
+                     di->monsters[e->mon - 1].symname, e->monflags & MON_DETECTED ? " (sensed)" : "");
+            }
+        js_text(7, tbuf);
     }
     js_text(0, promptbuf);
+    js_text(8, *promptbuf ? promptbuf : toplast);
     js_text(1, statbuf);
     js_text(2, invtext ? invtext : "");
 
@@ -299,12 +318,14 @@ static void add_msg(const char *s)
 
         snprintf(fold, sizeof fold, "%s (x%d)", s, ++hist_reps);
         js_text(6, fold);
+        strcpy(toplast, fold);
         return;
     }
     snprintf(hist_prev, sizeof hist_prev, "%s", s);
     hist_reps = 1;
     nhist++;
     js_text(4, s);
+    snprintf(toplast, sizeof toplast, "%s", s);
 }
 
 static void web_print_message(int turn, const char *msg) { add_msg(msg); }
@@ -1012,6 +1033,7 @@ static const char *get_command(int *count, struct nh_cmd_arg *arg)
         if (k == '\033')
             continue;
         js_text(5, ""); /* a new action: older messages dim */
+        *toplast = 0;
         /* movement: hjklyubn move, shifted run, Ctrl go2, < > up/down */
         if ((d = key_dir(k)) != DIR_NONE && !isdigit(k)) {
             arg->argtype = CMD_ARG_DIR, arg->d = d;

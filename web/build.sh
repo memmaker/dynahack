@@ -62,4 +62,6 @@ emcc -O2 -w -fcommon -std=gnu99 -DSTATIC_BUILD $CI -sUSE_ZLIB=1 \
 	-sEXPORTED_RUNTIME_METHODS=FS,IDBFS,HEAP32 \
 	-sFORCE_FILESYSTEM -lidbfs.js -sENVIRONMENT=web
 cp web/index.html web/dynahack.js "$HOME/Games/rvip-tools/web/rvip-wm.js" "$OUT/"
+if [ -f web/make-help.py ]; then python3 web/make-help.py > "$OUT/help.html"
+else echo "note: help.html not built yet (web/make-help.py comes in RVIP stage 6)"; fi
 ls -la "$OUT"

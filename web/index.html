@@ -52,11 +52,16 @@
 	#pop[hidden] { display: none; }
 	.split { position: absolute; background: var(--gut); z-index: 2; cursor: row-resize; touch-action: none; }
 	.split.v { cursor: col-resize; }
-	#t-inv .body { overflow-y: auto; }
+	#t-inv .body, #t-vis .body { overflow-y: auto; }
 	.split:hover, .split.drag { background: var(--gut-hover); }
-	#overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex;
+	#overlay, #help { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex;
 		align-items: center; justify-content: center; z-index: 10; }
-	#overlay[hidden], #status[hidden], #game[hidden] { display: none; }
+	#overlay[hidden], #help[hidden], #status[hidden], #game[hidden] { display: none; }
+	#help .panel { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+		width: min(980px, calc(100vw - 32px)); height: calc(100vh - 64px); display: flex; flex-direction: column; }
+	#help .head { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+	#help .head h2 { margin: 0; font-size: 16px; color: var(--accent); flex: 1; }
+	#help-body { overflow: auto; padding: 4px 24px 32px; outline: none; font-size: 14px; line-height: 1.6; }
 	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px 24px; max-width: 560px; }
 	.card h2 { margin: 0 0 10px; font-size: 16px; color: var(--accent); }
 	kbd { display: inline-block; min-width: 1.7em; padding: 0 6px; text-align: center; font: 600 12px/1.6 ui-monospace, Menlo, monospace;
@@ -67,6 +72,8 @@
 <body>
 <div id="bar">
 	<h1>DynaHack</h1>
+	<button id="btn-help" title="Game guide, controls and saving">Help</button>
+	<span class="sep"></span>
 	<button id="btn-zoom-out" title="Smaller map">Zoom −</button>
 	<button id="btn-zoom-in" title="Bigger map">Zoom +</button>
 	<button id="btn-tiles" title="Switch between tiles and text">Tiles: NetHack</button>
@@ -88,7 +95,15 @@
 	<div class="win" id="t-msg"><div class="t"><span class="name">Log messages</span></div><div class="body"><pre class="txt" id="msg"></pre></div></div>
 	<div class="win" id="t-stat"><div class="t"><span class="name">Status</span></div><div class="body"><pre class="txt" id="stat"></pre></div></div>
 	<div class="win" id="t-inv"><div class="t"><span class="name">Inventory</span></div><div class="body"><div class="txt" id="inv"></div></div></div>
+	<div class="win" id="t-vis"><div class="t"><span class="name">Visible</span></div><div class="body"><div class="txt" id="vis"></div></div></div>
 	<div class="txt" id="pop" hidden></div>
+</div>
+
+<div id="help" hidden>
+	<div class="panel" role="dialog" aria-label="DynaHack guide">
+		<div class="head"><h2>DynaHack guide</h2><button id="help-close">Close</button></div>
+		<div id="help-body" tabindex="-1">Loading…</div>
+	</div>
 </div>
 
 <div id="overlay" hidden>

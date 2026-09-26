@@ -114,19 +114,19 @@
 	function saveLayout() {
 		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
-	function fonts() { ['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
+	function fonts() { ['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
 	function makeWM() {
 		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text }; } catch (e) { }
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
 		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
 		wm = RvipWM({
 			area: $('game'), menu: $('btn-layout'),
-			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Log messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }],
-			multi: { d: 'h', r: 0.75, a: { d: 'v', r: 0.2, a: 'msg', b: { d: 'v', r: 0.84, a: 'map', b: 'stat' } }, b: 'inv' },
+			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Log messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
+			multi: { d: 'h', r: 0.75, a: { d: 'v', r: 0.2, a: 'msg', b: { d: 'v', r: 0.84, a: 'map', b: 'stat' } }, b: { d: 'v', r: 0.65, a: 'inv', b: 'vis' } },
 			single: { d: 'v', r: 3 * line / H, a: 'msg', b: { d: 'v', r: 1 - 3 * line / (H - 3 * line), a: 'map', b: 'stat' } },
 			state: L.wm, noFont: 'map',
 			save: function (st) { L.wm = st; saveLayout(); },
-			layout: function (r) { rects = r; fonts(); if (auto) { cell = fit(); measure(); } scrollMap(true); draw(); },
+			layout: function (r) { rects = r; fonts(); if (auto) cell = fit(); measure(); scrollMap(true); draw(); },
 			font: function (id, d) { L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
 			onReset: function () { auto = true; L.cell = 0; L.font = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
 		});
@@ -159,10 +159,12 @@
 			if (nh.last[id] === t) return;
 			if (t) showGame();   /* character selection comes before the map */
 			nh.last[id] = t;
-			if (id === 0) { prompt = t; RvipWM.prompt.text(t); drawMsgs(); }
+			if (id === 0) { prompt = t; drawMsgs(); }
+			else if (id === 8) RvipWM.prompt.text(t);
 			else if (id === 1) $('stat').textContent = t.replace(/\n$/, '');
 			else if (id === 2) $('inv').innerHTML = rowsHtml(t, -1);
 			else if (id === 3) drawPop(t);
+			else if (id === 7) $('vis').innerHTML = rowsHtml(t, -1);
 		},
 		/* peek: number of waiting keys; otherwise the next key or -1.
 		 * While the game waits, the files go to IndexedDB every 2 s. */
@@ -188,6 +190,10 @@
 
 	/* ---------- input ---------- */
 	function onKey(e) {
+		if (!$('help').hidden) {     /* the guide is open: the game gets no keys */
+			if (e.key === 'Escape') { $('help').hidden = true; e.preventDefault(); }
+			return;
+		}
 		if (!running || e.isComposing || e.metaKey || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
 		var k = e.key, c;
 		if (e.code === 'NumpadEnter') c = 13;
@@ -254,6 +260,20 @@
 		syncFiles(function (err) { if (!err) location.reload(); });
 	}
 
+	/* ---------- help: help.html (web/make-help.py, stage 6), fetched on first open ---------- */
+	var helpLoaded = false;
+	function toggleHelp() {
+		var h = $('help');
+		h.hidden = !h.hidden;
+		if (!h.hidden && !helpLoaded) {
+			helpLoaded = true;
+			fetch('help.html').then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+				.then(function (t) { $('help-body').innerHTML = t; })
+				.catch(function (err) { helpLoaded = false; $('help-body').textContent = 'Could not load the guide (' + err + '). Press ? or Enter in the game for its command list.'; });
+		}
+		if (!h.hidden) $('help-body').focus();
+	}
+
 	/* ---------- startup ---------- */
 	window.Module = {
 		nh: nh,
@@ -304,6 +324,8 @@
 			var r = e.target.closest('.row.pick');
 			if (r && running) { events.push(0x20000 | +r.dataset.i); e.preventDefault(); }
 		});
+		$('btn-help').onclick = toggleHelp;
+		$('help-close').onclick = toggleHelp;
 		$('btn-export').onclick = exportSave;
 		$('btn-import').onclick = function () { $('import-file').click(); };
 		$('import-file').onchange = function () { if (this.files[0]) importSave(this.files[0]); this.value = ''; };
@@ -312,7 +334,7 @@
 		$('btn-zoom-out').onclick = function () { zoom(-4); };
 		$('btn-tiles').onclick = function () {
 			L.text = !L.text; showMode(); saveLayout(); draw();
-			[2, 3].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
+			[2, 3, 7].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
 		};
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {

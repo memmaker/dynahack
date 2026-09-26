@@ -294,3 +294,64 @@ symbol* including random appearances (object descriptions), not per object
 name; a tiny emcc+node dumper of the game's own symbol table makes name
 matching exact; 3.4.3's (71,108,108) tile background can be made transparent
 to draw the floor under monsters/objects.
+
+### Stage 5 (web page) — done 2026-09-26, tested locally, NOT deployed
+- **Harness** (`web/dynahack.js`, `web/index.html`, from SLASH'EM's): rvip-wm.js
+  tiling, one/multi-window, Windows drop-down, rename/A−/A+/× on hover, Reset
+  windows; default on Map, Log messages, Status, Inventory, **Visible** (new).
+  Automatic split + cell size (12–64, fit) until dragged/zoomed. Layout, zoom,
+  font, titles, Tiles/Text in `/dynahack/web-layout.json` (IDBFS). Map camera
+  `RvipWM.center` with the hero cell from C (`js_map`). Top bar: "DynaHack",
+  Help, Zoom, Tiles, Windows, Export/Import save, New character, version line
+  `Based on DynaHack 0.6.0 · tung/DynaHack @ 25aaf2a`.
+- **Visible window** (`webwin.c` `redraw()`, `js_text(7)`): monsters on the map
+  but the hero, from dbuf + `nh_get_drawing_info()` names/colours/tiles, with
+  tame/peaceful and "(sensed)" for detected ones. **Objects skipped:** the API
+  names them only via `nh_describe_pos()`, whose `describe_object()` calls
+  `mksobj()` (bumps `flags.ident`) = game state change outside the log → replay
+  desync. Needs a side-effect-free object-appearance name in the library.
+- **Prompt line** (`js_text(8)`): the open question (`promptbuf`) or else the
+  newest message of the current action (`toplast`, cleared when a command key
+  is read in `get_command()`); `RvipWM.prompt.wait(at_cmd && !popup)` from
+  every key poll (`at_cmd` = `get_command()` reading a command). `js_text(0)`
+  still feeds the question into the Log window only.
+- **Persistence/recovery (unchanged from stage 1, verified):** the `.nhgame`
+  log is written per command; JS syncs IDBFS every 2 s while waiting for a
+  key, every 15 s, on `visibilitychange`/`pagehide`, after save/end. Reload =
+  crashed log → `nh_restore_game()` replays it, no question. `S` saves (end
+  snapshot in the log). New character clears `save/*.nhgame` only; Import
+  writes the file and reloads. Game end → sync → "Play again".
+  `unhandledrejection`/`error` → "The game crashed … reload".
+- **Replay timing:** T:720 (130 KB log): page load → playable ≈1.5 s after a
+  reload without saving (full replay). The library's replay checkpoints
+  (`logreplay.c` `make_checkpoint`) are in-memory only (replay viewer), so no
+  shortcut; not needed at this speed.
+- **Fixed:** saved zoom was ignored for the canvas size on load (`measure()`
+  only ran in auto mode) → drawn at the saved cell in a 32-px-cell canvas.
+- **Help:** button fetches `help.html` on first open (404 message until stage 6),
+  Escape closes, no keys reach the game while open. `build.sh` builds it only
+  when `web/make-help.py` exists (prints a "not built yet" note).
+- `web/deploy.sh` (step-9 guard) → `ruzzoli.de:/var/www/ruzzoli.de/roguelikes/dynahack`,
+  not run (no GitHub repo yet).
+- **Tested** (own tab, port 8461): birth → tiles → all 5 windows filled →
+  `~`, Enter menu, `i`; rename + gutter drag + zoom + A+ survive reload; zoomed
+  map (cell 28) follows the hero 1 cell per step; prompt shows `[yn]`/`yes/no`
+  questions, hides on a command key; reloads at T:13 and T:720 (×3) resume in
+  place; `S` y → Play again → T:732; death → Play again → new game; 300
+  random keys, no console errors (only help.html 404); New character (layout
+  kept) → Import → T:82; `#quit` → "The game is over"; resize 1000×650 →
+  1440×900 → 1200×750 (question open) → 760×500 + one/multi toggle: no page
+  scroll, backing store = CSS × dpr. `/dynahack` DB deleted.
+- **Open:** Visible lists no objects (above); the Font A−/A+ is one size for
+  all text windows (SLASH'EM's); at cell 12 the map is wider than a small map
+  window and scrolls (by design); the library echoes answered prompts
+  (`<Really save? [yn]: n>`) into the prompt line until the next command key;
+  a background browser-pane tab gets no `resize` events (test by dispatching
+  one).
+- **Next: stage 6** (docs: `build-docs.py` entry + guide/Tips, `web/make-help.py`
+  → help.html; sound + music toggles, off by default).
+
+Suggested RVIP.md lessons (not edited): NetHack4-family `nh_describe_pos()`
+changes game state (mksobj) → never call it from a client that relies on log
+replay; the browser pane doesn't fire `resize`/ResizeObserver for a background
+tab under `resize_window`; restore saved zoom before the first `measure()`.
