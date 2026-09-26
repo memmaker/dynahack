@@ -3,7 +3,8 @@
  * struct nh_window_procs for libnitrohack and runs the command loop.
  * C decides everything, web/dynahack.js only draws it and rvip-wm.js
  * places the windows (RVIP.md Part W, W0):
- *   js_map:  ROWNO*COLNO tile indexes (-1 = none yet, stage 4) and the
+ *   js_map:  ROWNO*COLNO tiles, (top tile + 1) | (floor tile + 1) << 16
+ *            (0 = nothing; tile_* tables from web/mktiles.py), and the
  *            same cells as text (char | colour << 8, the game's own
  *            symbols from nh_get_drawing_info), cursor x/y, level
  *   js_text: 0 prompt, 1 status lines, 2 inventory, 3 pop-up, 4 new
@@ -78,13 +79,17 @@ static void js_end(void) {}
 #define yield_sometimes() ((void) 0)
 #endif
 
-struct row { char ch; int sel, clr; char *s; }; /* sel: 0/1, 2 = heading */
+struct row { char ch; int sel, clr, tile; char *s; }; /* sel: 0/1, 2 = heading */
 /* inv: 1 = inventory list (letter/+ main action, Ctrl+letter or * examine,
  * - drop, Enter/Space/5/click item menu, 0/. close, other keys = commands),
  * 2 = item prompt / item menu (5/6 choose, 4/0/. close), 3 = 2 with the
  * keys shown in the text (command menu); key = the key
  * that ended it ('*' for Ctrl+letter) */
 struct pop { const char *prompt; struct row *rows; int n, top, cur, any, inv, key; };
+
+/* web/gen/src/tiletab.c (web/mktiles.py): display symbol -> tiles.png index */
+extern const short tile_bg[], tile_trap[], tile_obj[], tile_mon[], tile_warn[], tile_expl[],
+                   tile_zap[], tile_effect[], tile_invis[], tile_swallow[];
 
 static struct nh_drawing_info *di;
 static struct nh_dbuf_entry dbuf[ROWNO][COLNO];
@@ -180,6 +185,36 @@ static struct nh_symdef cell_sym(struct nh_dbuf_entry *e)
     return di->bgelements[e->bg];
 }
 
+/* the tile of the top layer, as cell_sym() picks the symbol */
+static int cell_tile(struct nh_dbuf_entry *e)
+{
+    if (e->effect) {
+        int id = NH_EFFECT_ID(e->effect);
+
+        switch (NH_EFFECT_TYPE(e->effect)) {
+        case E_EXPLOSION: return tile_expl[id];
+        case E_SWALLOW: return tile_swallow[id & 7];
+        case E_ZAP: case E_BREATH: return tile_zap[id];
+        case E_MISC: return tile_effect[id];
+        }
+    }
+    if (e->invis)
+        return tile_invis[0];
+    if (e->mon)
+        return e->mon > di->num_monsters && (e->monflags & MON_WARNING)
+               ? tile_warn[e->mon - 1 - di->num_monsters] : tile_mon[e->mon - 1];
+    if (e->obj)
+        return tile_obj[e->obj - 1];
+    if (e->trap)
+        return tile_trap[e->trap - 1];
+    return tile_bg[e->bg];
+}
+
+static int obj_tile(struct nh_objitem *it)
+{
+    return it->otype > 0 && it->otype <= di->num_objects ? tile_obj[it->otype - 1] : -1;
+}
+
 static void redraw(void)
 {
     int x, y, i;
@@ -189,7 +224,9 @@ static void redraw(void)
             for (x = 0; x < COLNO; x++) {
                 struct nh_symdef s = cell_sym(&dbuf[y][x]);
 
-                cells[y * COLNO + x] = -1; /* ponytail: tiles come in stage 4 */
+                int t = cell_tile(&dbuf[y][x]), under = tile_bg[dbuf[y][x].bg];
+
+                cells[y * COLNO + x] = (t + 1) | (t == under ? 0 : (under + 1) << 16);
                 chars[y * COLNO + x] = (unsigned char) s.ch | pal(s.color) << 8;
             }
         js_map(cells, chars, curx, cury, level_z);
@@ -204,7 +241,7 @@ static void redraw(void)
         for (i = 0; i < popup->n; i++) {
             struct row *r = &popup->rows[i];
 
-            tadd("-1\t%c\t%d\t%d\t%s\n", r->ch && popup->inv != 3 ? r->ch : ' ', r->sel, r->clr, r->s);
+            tadd("%d\t%c\t%d\t%d\t%s\n", r->sel == 2 ? -1 : r->tile, r->ch && popup->inv != 3 ? r->ch : ' ', r->sel, r->clr, r->s);
         }
     }
     js_text(3, tbuf);
@@ -414,6 +451,7 @@ static int display_menu(struct nh_menuitem *items, int icount, const char *title
         r->s = strdup(items[i].caption);
         r->sel = pick ? (items[i].selected ? 1 : 0) : 2;
         r->clr = items[i].role == MI_HEADING ? CLR_YELLOW : CLR_GRAY;
+        r->tile = -1;
         r->ch = items[i].accel;
         if (pick && !r->ch && how != PICK_NONE && acc && inv != 3)
             r->ch = acc, acc = next_accel(acc);
@@ -509,6 +547,7 @@ static int web_display_objects(struct nh_objitem *items, int icount, const char 
         r->s = strdup(items[i].caption);
         r->sel = items[i].role == MI_NORMAL && items[i].id ? 0 : 2;
         r->clr = r->sel == 2 ? CLR_YELLOW : obj_color(&items[i]);
+        r->tile = obj_tile(&items[i]);
         r->ch = items[i].accel;
     }
     n = run_pop(&p, how);
@@ -542,7 +581,8 @@ static nh_bool web_list_items(struct nh_objitem *items, int icount, nh_bool inve
     for (i = 0; i < icount; i++) {
         int head = items[i].role != MI_NORMAL;
 
-        tadd("-1\t%c\t%d\t%d\t%s\n", items[i].accel ? items[i].accel : ' ', head ? 2 : 0,
+        tadd("%d\t%c\t%d\t%d\t%s\n", head ? -1 : obj_tile(&items[i]),
+             items[i].accel ? items[i].accel : ' ', head ? 2 : 0,
              head ? CLR_YELLOW : obj_color(&items[i]), items[i].caption);
     }
     free(invtext);
@@ -563,7 +603,7 @@ static void show_lines(const char *title, const char *buf)
         if (p.n == cap)
             p.rows = realloc(p.rows, (cap = cap * 2 + 16) * sizeof(struct row));
         p.rows[p.n].s = strndup(s, e - s);
-        p.rows[p.n].ch = 0, p.rows[p.n].sel = 2, p.rows[p.n].clr = CLR_GRAY;
+        p.rows[p.n].ch = 0, p.rows[p.n].sel = 2, p.rows[p.n].clr = CLR_GRAY, p.rows[p.n].tile = -1;
         p.n++;
         s = *e ? e + 1 : e;
     }

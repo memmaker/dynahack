@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build DynaHack for the browser (Emscripten + Asyncify) into web/dist.
 # web/webwin.c is the client (window procs + command loop, in the place
-# of nitrohack/), web/dynahack.js draws, rvip-wm.js places the windows.
+# of nitrohack/), web/dynahack.js draws (tiles: web/mktiles.py), rvip-wm.js places the windows.
 # Data: the game's own tools (makedefs, dgn_comp, lev_comp, dlb) built with
 # emcc and run under node, because their binary output holds native longs
 # (8 bytes natively, 4 in wasm32).  Needs emcc, node, bison, flex.
@@ -47,8 +47,14 @@ mkdir -p $G/stage && cp $G/dat/nhdat $D/license $G/stage/
 fi
 
 rm -rf "$OUT" && mkdir -p "$OUT"
+# tiles: the game's display symbol names (web/tiledump.c) matched against the
+# NetHack 3.4.3-style text tiles (web/tiles/) -> tiles.png + C table
+emcc $CT web/tiledump.c $L/src/drawing.c $L/src/objects.c $L/src/monst.c $L/src/decl.c \
+	$L/src/symclass.c -o $T/tiledump.js
+node $T/tiledump.js > $G/symbols.tsv
+python3 web/mktiles.py web/tiles $G/symbols.tsv "$OUT/tiles.png" $G/src/tiletab.c
 emcc -O2 -w -fcommon -std=gnu99 -DSTATIC_BUILD $CI -sUSE_ZLIB=1 \
-	$L/src/*.c $G/src/monstr.c web/webwin.c \
+	$L/src/*.c $G/src/monstr.c $G/src/tiletab.c web/webwin.c \
 	--preload-file "$G/stage@/dynahack-data" -o "$OUT/dynahack-core.js" \
 	-sASYNCIFY -sASYNCIFY_STACK_SIZE=131072 -sSTACK_SIZE=2097152 \
 	-sALLOW_MEMORY_GROWTH -sEXIT_RUNTIME=1 -sINITIAL_MEMORY=64MB \

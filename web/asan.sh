@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 T=$(mktemp -d) B=build/libnitrohack
 cc -g -O1 -fsanitize=address -fno-omit-frame-pointer -w -fcommon -std=gnu99 -DSTATIC_BUILD \
 	-Iinclude -Ilibnitrohack/include -I$B/include \
-	libnitrohack/src/*.c $B/src/monstr.c web/webwin.c -lz -o "$T/dynahack"
+	libnitrohack/src/*.c $B/src/monstr.c web/gen/src/tiletab.c web/webwin.c -lz -o "$T/dynahack"
 cp $B/dat/nhdat libnitrohack/dat/license "$T/"
 cd "$T"
 for run in 1 2 3; do

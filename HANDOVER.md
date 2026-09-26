@@ -212,3 +212,85 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   coverage, gaps filled by stand-ins from the same set (new dragons → existing
   dragons, gold dragon → yellow …), nearest-neighbour scaling. `redraw()` sends
   `-1` tile indexes now (`cells[]`); map `nh_symdef` names → tile index in C.
+
+### Stage 4 (tiles) — done 2026-09-26
+- **Tile set:** NetHack 3.4.3-style 16×16 text tiles as shipped with SLASH'EM
+  0.0.7E7F3, copied unchanged into `web/tiles/{monsters,objects,other}.txt`
+  (`web/tiles/README`: NetHack General Public License = DynaHack's
+  `libnitrohack/dat/license`). One set, no mixing. One derived tile: the
+  remembered dark floor = lit floor at 45 % (3.4.3 has none).
+- **Generator:** `web/build.sh` builds `web/tiledump.c` (emcc, node; links only
+  drawing/objects/monst/decl/symclass.c) → `web/gen/symbols.tsv` = the names
+  of `nh_get_drawing_info()` (+ object name/desc/class, monster class) →
+  `web/mktiles.py` → `dist/tiles.png` (1405 tiles, 40 per row, RGBA: the
+  (71,108,108) background of monster/object tiles is transparent) +
+  `web/gen/src/tiletab.c` (`tile_bg/trap/obj/mon/warn/expl/zap/effect/invis/
+  swallow[]`). Objects match by class + description (the appearance the dbuf
+  index stands for; tile classes from SLASH'EM's object order, `CLASS_START`),
+  monsters by name (`human were…` = the later tile), map/traps/effects via
+  the `BG`/`TRAP`/`EFFECT` tables (walls positional, `unexplored` = blank).
+- **Coverage (build prints it):** bg 45/48, traps 22/24, monsters 370/403,
+  objects 445/538, warnings/explosions/zaps/invisible/swallow 100 %, effects
+  8/9 → **1000/1132 = 88.3 %** exact. Stage 1's 96.6 % was wrong: it counted
+  object names, not appearances (DynaHack has ~50 extra random appearances:
+  scroll labels, ring gems, wand materials, potion/spellbook colours). Build
+  fails below 88 % (`ponytail:` note in mktiles.py). Below the RVIP 95 % goal;
+  3.4.3-style is already the fallback set, so kept — user may decide.
+- **Stand-ins (all from the same set, printed by the build):** swamp → water,
+  dead tree → tree, magic chest → chest (object tile), vibrating square → magic
+  trap, shuriken trap → dart trap, gas cloud → cloud; dragons by colour/breath:
+  tatzelworm gray, amphitere silver, draken red, lindworm white, sarkany orange,
+  sirrush black, leviathan blue, wyvern green, gold dragon + guivre yellow (and
+  their babies), chromatic dragon + Tiamat → Chromatic Dragon; locust → killer
+  bee, enormous rat / rodent of unusual size → giant rat, disintegrator → rust
+  monster, miner / prison guard → watchman, lava demon → fire elemental, giant
+  turtle → crocodile, convict / inmate / Robert the Lifer → prisoner, Warden
+  Arianna → watch captain; the 11 effect-named dragon scale (mail)s → the colour
+  above (chromatic → shimmering); tinfoil hat → dented pot, striped shirt →
+  T-shirt, alchemy smock → lab coat, iron safe → large box; missing appearances
+  → a look-alike of the class (`LOOK` table: rings quartz→glass, jacinth→ruby,
+  …; potions squishy→murky, indigo→brilliant blue, …; spellbooks chartreuse→
+  light green, …; wands walnut→oak, chrome→steel, …; amulets rectangular→square,
+  spiked→pyramidal); the 18 extra scroll labels → a scroll tile (3.4.3 scroll
+  tiles are all identical); other-appearance of a known object (buckled
+  kicking boots, leather-bound detect monsters) → its own 3.4.3 tile.
+- **C decides (W0):** `web/webwin.c` `cell_tile()` (same layer order as
+  `cell_sym()`) + `tile_bg[bg]` under it; `js_map` cells = (top+1) | (floor+1)
+  << 16, 0 = blank. Hero = dbuf monster = role/race monster (`display_self`)
+  → role tile (female wizard → wizard). Items in lists: `obj_tile()` from
+  `nh_objitem.otype` (already the appearance, 1-based), row field 0.
+- **Loader:** `web/dynahack.js` `draw()`/`blit()` (floor, then top tile),
+  `imageSmoothingEnabled = false` after every resize, backing store = CSS ×
+  dpr; list tiles `.ti` = 1em (font height) with `background-size: 40em`,
+  `image-rendering: pixelated`. Scale: cell 12–64 CSS px (fit + Zoom ±4).
+  **Tiles/Text toggle** kept (button `btn-tiles`, saved in web-layout.json,
+  cost: 6 lines, SLASH'EM's); hero box drawn only in text mode. No pref files.
+- **Checked** (own tab, port 8451, dpr 2, female human Wizard "rvipt4", died on
+  Dlvl 2): canvas pixels read with JS and matched against tiles.png per cell —
+  every non-blank cell (up to 508) identified at 100 % and contains only its
+  tile's + one floor tile's colours at cell 12 and 20 (24/40 device px): hero =
+  wizard tile, kitten, newt, jackal, sewer rat, grid bug; gold, boulder, gem
+  (appearance), elven mithril-coat; walls, doorways, closed doors, corridors,
+  lit corridor, floor, up/down stairs, fountain, a seen hole (trap). Inventory
+  tiles 13 px at 13 px font; each appearance tile = Discoveries (piece of
+  cloth, DAIYEN FOOELS, stained, vellum, milky, orange, wooden, agate, granite;
+  stand-ins indigo → brilliant blue, plastic → glass, GNIK SISI VLE → scroll).
+  Unexplored = blank. No console errors. `/dynahack` DB deleted.
+- **Not seen in play** (table-checked only): dark remembered floor (1404 for
+  `darkroom`, needs a dark room), remembered invisible `I` (637), explosions/
+  zaps/swallow. Engravings: DynaHack's dbuf has no engraving layer, nothing to
+  show. Wall variants: not exposed by the API (`dgnflags` bghints only) → plain
+  walls everywhere, also Sokoban/Mines.
+- **Open:** coverage 88.3 % < 95 % (see above); no pet marker (optional); magic
+  chest in item lists uses the library's `otype = CHEST` (not +1) → shows as
+  the tile before (library quirk, rare).
+- **Next: stage 5 (web page):** window layout (Visible, Equipment windows),
+  persistence (layout already in IDBFS), autosave (stage 1: the `.nhgame` log +
+  2 s idle sync already gives crash-proof log-replay recovery, tested), Help
+  button + `help.html`, `deploy.sh`.
+
+Suggested RVIP.md lessons (not edited): count tile coverage per *display
+symbol* including random appearances (object descriptions), not per object
+name; a tiny emcc+node dumper of the game's own symbol table makes name
+matching exact; 3.4.3's (71,108,108) tile background can be made transparent
+to draw the floor under monsters/objects.

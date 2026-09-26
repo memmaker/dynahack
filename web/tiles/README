@@ -1,0 +1,6 @@
+monsters.txt, objects.txt, other.txt: the NetHack 3.4.3-style 16x16 text
+tiles as shipped with SLASH'EM 0.0.7E7F3 (win/share/), copied unchanged.
+NetHack tiles copyright (c) the NetHack DevTeam and tile authors; SLASH'EM
+additions (c) the SLASH'EM team.  Distributed under the NetHack General
+Public License, the same licence as DynaHack: libnitrohack/dat/license.
+web/mktiles.py turns them into dist/tiles.png and the glyph -> tile table.

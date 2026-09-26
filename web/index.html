@@ -43,8 +43,8 @@
 	.row.pick:hover { background: #22222a; }
 	.row.cur { background: #32326e; }
 	#pop .pp { color: #ffff50; padding: 2px 4px 4px; white-space: pre-wrap; }
-	.ti { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin-right: 5px;
-		background-image: url(tiles.png); image-rendering: pixelated; }
+	.ti { display: inline-block; width: 1em; height: 1em; vertical-align: -.15em; margin-right: .4em;
+		background-image: url(tiles.png); background-size: 40em auto; image-rendering: pixelated; }
 	.so { background: #d7d7d7; color: #000; }
 	#map canvas { display: block; }
 	#pop { position: absolute; z-index: 3; background: #000; border: 1px solid var(--dim); box-shadow: 0 6px 24px rgba(0,0,0,.7);
@@ -69,6 +69,7 @@
 	<h1>DynaHack</h1>
 	<button id="btn-zoom-out" title="Smaller map">Zoom −</button>
 	<button id="btn-zoom-in" title="Bigger map">Zoom +</button>
+	<button id="btn-tiles" title="Switch between tiles and text">Tiles: NetHack</button>
 	<button id="btn-layout" title="Windows: layout, show and hide">Windows ▾</button>
 	<span class="sep"></span>
 	<button id="btn-export" title="Download the game log (.nhgame)">Export save</button>

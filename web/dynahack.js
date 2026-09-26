@@ -1,6 +1,7 @@
 /*
  * DynaHack in the browser: draws what web/webwin.c sends (Module.nh): the
- * map as coloured characters (tile indexes too, from stage 4), prompt,
+ * map as tiles (C picks them: top tile + floor tile per cell) or coloured
+ * characters (Tiles/Text button), prompt,
  * status, inventory, pop-up rows and messages. No game logic here. Windows
  * are placed by the shared rvip-wm.js. Keyboard, saves in IndexedDB
  * (IDBFS, /dynahack: save/*.nhgame is the game log, written as you play).
@@ -21,7 +22,7 @@
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var log = [], prompt = '', rects = {}, wm = null;
-	var L = { cell: 0, font: 13, wm: null, text: true }, LAYOUT = DIR + '/web-layout.json';
+	var L = { cell: 0, font: 13, wm: null, text: false }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -56,16 +57,19 @@
 					ctx.fillStyle = PAL[(k >> 8) & 15];
 					ctx.fillText(String.fromCharCode(k & 0xff), (tx + 0.5) * cell, (ty + 0.5) * cell + 1);
 				}
-		} else if (!sheet.complete || !sheet.width) return;   /* tiles: stage 4 */
-		else for (var y = 0; y < ROWNO; y++)
+		} else if (!sheet.complete || !sheet.width) return;
+		else for (var y = 0; y < ROWNO; y++)     /* tiles: floor, then the top tile */
 			for (var x = 0; x < COLNO; x++) {
-				var t = cells[y * COLNO + x];
-				if (t >= 0) ctx.drawImage(sheet, (t % perRow) * 16, Math.floor(t / perRow) * 16, 16, 16, x * cell, y * cell, cell, cell);
+				var v = cells[y * COLNO + x];
+				blit((v >> 16) - 1, x, y); blit((v & 0xffff) - 1, x, y);
 			}
-		if (hero.x) {
+		if (hero.x && L.text) {
 			ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
 			ctx.strokeRect(hero.x * cell + 0.5, hero.y * cell + 0.5, cell - 1, cell - 1);
 		}
+	}
+	function blit(t, x, y) {
+		if (t >= 0) ctx.drawImage(sheet, (t % perRow) * 16, Math.floor(t / perRow) * 16, 16, 16, x * cell, y * cell, cell, cell);
 	}
 	/* keep the hero in the middle half of the map window; recentre when it leaves it */
 	function scrollMap() {
@@ -73,7 +77,7 @@
 	}
 	function tileSpan(t) {     /* a tile at text size, for menus and the inventory */
 		if (t < 0 || L.text) return '';
-		return '<span class="ti" style="background-position:-' + (t % perRow) * 16 + 'px -' + Math.floor(t / perRow) * 16 + 'px"></span>';
+		return '<span class="ti" style="background-position:-' + (t % perRow) + 'em -' + Math.floor(t / perRow) + 'em"></span>';
 	}
 
 	/* ---------- text windows ---------- */
@@ -112,7 +116,7 @@
 	}
 	function fonts() { ['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: true }; } catch (e) { }
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text }; } catch (e) { }
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
 		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
 		wm = RvipWM({
@@ -135,7 +139,8 @@
 		measure(); scrollMap(true); draw();
 	}
 
-	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); } }
+	function showMode() { $('btn-tiles').textContent = L.text ? 'Tiles: Text' : 'Tiles: NetHack'; }
+	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); showMode(); } }
 	var nh = {
 		map: function (cp, tp, hx, hy, lev) {
 			cells = Module.HEAP32.slice(cp >> 2, (cp >> 2) + COLNO * ROWNO);
@@ -292,6 +297,8 @@
 	document.addEventListener('DOMContentLoaded', function () {
 		cv = document.querySelector('#map canvas');
 		ctx = cv.getContext('2d');
+		sheet.onload = function () { perRow = sheet.width / 16; draw(); };
+		sheet.src = 'tiles.png';
 		cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 		$('pop').addEventListener('mousedown', function (e) {
 			var r = e.target.closest('.row.pick');
@@ -303,6 +310,10 @@
 		$('btn-new').onclick = newGame;
 		$('btn-zoom-in').onclick = function () { zoom(4); };
 		$('btn-zoom-out').onclick = function () { zoom(-4); };
+		$('btn-tiles').onclick = function () {
+			L.text = !L.text; showMode(); saveLayout(); draw();
+			[2, 3].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
+		};
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {
 			b.addEventListener('mousedown', function (e) { e.preventDefault(); });
