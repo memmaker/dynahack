@@ -83,7 +83,7 @@ const struct cmd_desc cmdlist[] = {
 	{"force", "force a lock", M('f'), 0, FALSE, doforce, CMD_ARG_NONE | CMD_EXT},
 	{"history", "show a list of your historic deeds", 0, 0, TRUE, dohistory, CMD_ARG_NONE | CMD_EXT | CMD_NOTIME},
 	{"idtrap", "identify a trap", '^', 0, TRUE, doidtrap, CMD_ARG_NONE | CMD_NOTIME},
-	{"inventory", "show your inventory", 'i', 0, TRUE, ddoinv, CMD_ARG_NONE | CMD_NOTIME},
+	{"inventory", "inventory: letter uses, Enter item menu, - drop, * examine", 'i', 0, TRUE, ddoinv, CMD_ARG_NONE | CMD_NOTIME},
 	{"invoke", "invoke an object's powers", 'V', M('i'), TRUE, doinvoke, CMD_ARG_NONE | CMD_EXT | CMD_ARG_OBJ},
 	{"jump", "jump to a location", M('j'), 'j', FALSE, dojump, CMD_ARG_NONE | CMD_EXT},
 	{"kick", "kick an adjacent object or monster", C('d'), 'k', FALSE, dokick, CMD_ARG_NONE},

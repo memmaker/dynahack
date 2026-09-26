@@ -79,7 +79,12 @@ static void js_end(void) {}
 #endif
 
 struct row { char ch; int sel, clr; char *s; }; /* sel: 0/1, 2 = heading */
-struct pop { const char *prompt; struct row *rows; int n, top, cur, any; };
+/* inv: 1 = inventory list (letter/+ main action, Ctrl+letter or * examine,
+ * - drop, Enter/Space/5/click item menu, 0/. close, other keys = commands),
+ * 2 = item prompt / item menu (5/6 choose, 4/0/. close), 3 = 2 with the
+ * keys shown in the text (command menu); key = the key
+ * that ended it ('*' for Ctrl+letter) */
+struct pop { const char *prompt; struct row *rows; int n, top, cur, any, inv, key; };
 
 static struct nh_drawing_info *di;
 static struct nh_dbuf_entry dbuf[ROWNO][COLNO];
@@ -89,6 +94,10 @@ static struct pop *popup;
 static char promptbuf[BUFSZ * 2], statbuf[BUFSZ * 3];
 static char hist_prev[BUFSZ];
 static int hist_reps, nhist, at_cmd;
+static int qkey; /* one queued key, read before the browser's */
+static char next_cmd[32], objprompt[BUFSZ], objcur; /* menu choice; item prompt title + first candidate */
+static struct nh_cmd_arg next_arg;
+static int reopen_inv, auto_objlist;
 static char *invtext;
 static char *tbuf;
 static size_t tlen, tcap;
@@ -195,7 +204,7 @@ static void redraw(void)
         for (i = 0; i < popup->n; i++) {
             struct row *r = &popup->rows[i];
 
-            tadd("-1\t%c\t%d\t%d\t%s\n", r->ch ? r->ch : ' ', r->sel, r->clr, r->s);
+            tadd("-1\t%c\t%d\t%d\t%s\n", r->ch && popup->inv != 3 ? r->ch : ' ', r->sel, r->clr, r->s);
         }
     }
     js_text(3, tbuf);
@@ -208,6 +217,10 @@ static int getkey(void)
     int k;
 
     redraw();
+    if (qkey) {
+        k = qkey, qkey = 0;
+        return k;
+    }
     for (;;) {
         if ((k = js_key(0, at_cmd && !popup)) < 0) {
             idle();
@@ -225,8 +238,8 @@ static int getkey(void)
         if (k & 0x10000) /* map click: not used yet */
             continue;
         switch (k) {
-        case 0x101: return 'k';
-        case 0x102: return 'j';
+        case 0x101: return popup ? '8' : 'k'; /* 8/2 never item letters */
+        case 0x102: return popup ? '2' : 'j';
         case 0x103: return 'h';
         case 0x104: return 'l';
         case 0x105: return 'y';
@@ -290,6 +303,9 @@ static int run_pop(struct pop *p, int how)
                 p->cur = i;
                 break;
             }
+    for (i = 0; p->inv == 2 && objcur && i < p->n; i++)
+        if (p->rows[i].sel != 2 && p->rows[i].ch == objcur)
+            p->cur = i; /* item prompt: start on the first candidate */
     popup = p;
     for (;;) {
         if (p->cur >= 0) {
@@ -304,27 +320,48 @@ static int run_pop(struct pop *p, int how)
             return -1;
         }
         if (how == PICK_NONE) {
-            if ((k == ' ' || k == '>' || k == 'j') && p->top + rows < p->n)
-                p->top += k == 'j' ? 1 : rows;
-            else if ((k == '<' || k == 'k') && p->top > 0)
-                p->top -= k == 'k' ? 1 : (p->top < rows ? p->top : rows);
+            if ((k == ' ' || k == '>' || k == 'j' || k == '2') && p->top + rows < p->n)
+                p->top += k == 'j' || k == '2' ? 1 : rows;
+            else if ((k == '<' || k == 'k' || k == '8') && p->top > 0)
+                p->top -= k == 'k' || k == '8' ? 1 : (p->top < rows ? p->top : rows);
             else
                 break;
             continue;
         }
+        p->key = k;
         for (i = 0; i < p->n && !(p->rows[i].sel != 2 && p->rows[i].ch == k); i++)
             ;
         if (i < p->n) { /* accelerator */
             if (how == PICK_ONE) {
                 p->cur = i;
                 break;
-                break;
             }
             p->rows[i].sel ^= 1, p->cur = i;
             continue;
         }
+        if (p->inv && (k == '0' || k == '.' || (p->inv >= 2 && k == '4'))) {
+            popup = NULL;
+            return -1;
+        }
+        if (p->inv && (k == '5' || (p->inv >= 2 && k == '6')))
+            break;
+        if (p->inv == 1 && (k == '+' || k == '-' || k == '*'))
+            break;
+        if (p->inv == 1 && k > 0 && k < 27 && k != '\n' && k != '\r') { /* Ctrl+letter */
+            for (i = 0; i < p->n && !(p->rows[i].sel != 2 && p->rows[i].ch == k + 96); i++)
+                ;
+            if (i < p->n) {
+                p->cur = i, p->key = '*';
+                break;
+            }
+        }
         if (k == '\n' || k == '\r' || (k == ' ' && how == PICK_ONE))
             break;
+        if (p->inv == 1 && !strchr("28jk", k)) { /* any other key: a command */
+            qkey = k;
+            popup = NULL;
+            return -1;
+        }
         if (k == 'j' || k == 'k' || k == '2' || k == '8') {
             int d = (k == 'j' || k == '2') ? 1 : -1;
 
@@ -363,8 +400,8 @@ static void free_pop(struct pop *p)
 
 static char next_accel(char a) { return a == 'z' ? 'A' : a == 'Z' ? 0 : a + 1; }
 
-static int web_display_menu(struct nh_menuitem *items, int icount, const char *title,
-                            int how, int *results)
+static int display_menu(struct nh_menuitem *items, int icount, const char *title,
+                        int how, int *results, int inv)
 {
     struct pop p = { title, calloc(icount + 1, sizeof(struct row)), icount };
     int i, n;
@@ -378,9 +415,10 @@ static int web_display_menu(struct nh_menuitem *items, int icount, const char *t
         r->sel = pick ? (items[i].selected ? 1 : 0) : 2;
         r->clr = items[i].role == MI_HEADING ? CLR_YELLOW : CLR_GRAY;
         r->ch = items[i].accel;
-        if (pick && !r->ch && how != PICK_NONE && acc)
+        if (pick && !r->ch && how != PICK_NONE && acc && inv != 3)
             r->ch = acc, acc = next_accel(acc);
     }
+    p.inv = inv;
     n = run_pop(&p, how);
     if (n == 0 && how != PICK_NONE)
         for (i = 0; i < icount; i++)
@@ -393,6 +431,12 @@ static int web_display_menu(struct nh_menuitem *items, int icount, const char *t
     return n;
 }
 
+static int web_display_menu(struct nh_menuitem *items, int icount, const char *title,
+                            int how, int *results)
+{
+    return display_menu(items, icount, title, how, results, 0);
+}
+
 static int obj_color(struct nh_objitem *it)
 {
     if (it->otype <= 0 || it->otype > di->num_objects)
@@ -402,14 +446,63 @@ static int obj_color(struct nh_objitem *it)
     return pal(di->objects[it->otype - 1].color);
 }
 
+static void set_next(const char *name, char invlet)
+{
+    snprintf(next_cmd, sizeof next_cmd, "%s", name);
+    next_arg.argtype = invlet ? CMD_ARG_OBJ : CMD_ARG_NONE;
+    next_arg.invlet = invlet;
+}
+
+/* inventory list result (RVIP 3c): letter/+ main action, - drop,
+ * * or Ctrl+letter examine (whatisinv), Enter/Space/5/click the item's
+ * menu = the library's nh_get_object_commands() (describe = examine) */
+static void item_action(struct nh_objitem *it, int key)
+{
+    static const char *const mains[] = { "takeoff", "remove", "eat", "drink", "read", "zap",
+                                         "apply", "put on", "wear", "wield" };
+    int i, j, n = 0, pick[1];
+    struct nh_cmd_desc *oc = nh_get_object_commands(&n, it->accel);
+    struct nh_menuitem *items;
+    char title[BUFSZ];
+
+    if (key == '-' || key == '*') {
+        set_next(key == '-' ? "drop" : "whatisinv", it->accel);
+        return;
+    }
+    if (key != '\n' && key != '\r' && key != ' ' && key != '5') { /* main action */
+        set_next("whatisinv", it->accel);
+        for (j = 0; j < 10; j++)
+            for (i = 0; i < n; i++)
+                if (!strcmp(oc[i].name, mains[j]) && oc[i].altkey == it->accel) {
+                    set_next(oc[i].name, it->accel);
+                    return;
+                }
+        return;
+    }
+    if (!n)
+        return;
+    items = calloc(n, sizeof *items);
+    for (i = 0; i < n; i++) {
+        items[i].id = i + 1, items[i].role = MI_NORMAL, items[i].accel = oc[i].defkey;
+        snprintf(items[i].caption, BUFSZ, "%s", oc[i].desc);
+    }
+    oc = memcpy(malloc(n * sizeof *oc + 1), oc, n * sizeof *oc); /* freed by the next API call */
+    snprintf(title, sizeof title, "%c - %s", it->accel, it->caption);
+    if (display_menu(items, n, title, PICK_ONE, pick, 2) > 0) /* altkey = the object */
+        set_next(oc[pick[0] - 1].name, oc[pick[0] - 1].altkey);
+    free(oc);
+    free(items);
+}
+
 static int web_display_objects(struct nh_objitem *items, int icount, const char *title,
                                int how, struct nh_objresult *results)
 {
-    struct pop p = { title, calloc(icount + 1, sizeof(struct row)), icount };
-    int i, n;
+    struct pop p = { title ? title : objprompt, calloc(icount + 1, sizeof(struct row)), icount };
+    int i, n, inv = how == PICK_INVACTION;
 
-    if (how == PICK_INVACTION) /* stage 3 adds the item action menus */
-        how = PICK_NONE;
+    p.inv = inv ? 1 : how == PICK_ONE ? 2 : 0;
+    if (inv)
+        how = PICK_ONE;
     for (i = 0; i < icount; i++) {
         struct row *r = &p.rows[i];
 
@@ -419,6 +512,12 @@ static int web_display_objects(struct nh_objitem *items, int icount, const char 
         r->ch = items[i].accel;
     }
     n = run_pop(&p, how);
+    if (inv) { /* the item actions run as the next command */
+        if (n == 0 && p.cur >= 0)
+            item_action(&items[p.cur], p.key);
+        free_pop(&p);
+        return 0;
+    }
     if (n == 0 && how != PICK_NONE)
         for (i = 0; i < icount; i++)
             if (p.rows[i].sel == 1) {
@@ -605,6 +704,25 @@ static void web_getlin(const char *query, char *buf)
 static char web_query_key(const char *query, int *count)
 {
     int k, cnt = 0, has = 0;
+    const char *b = strrchr(query, '[');
+    int objq = !strncmp(query, "What do you want to ", 20) && b &&
+               (!strcmp(b, "[*]") || strstr(b, " or ?*]"));
+    const char *l = b ? b + 1 + 2 * (b[1] == '-' && b[2] == ' ') : ""; /* letters */
+    int list = *l == '*' || l[1] == ' ' ? '*' : '?'; /* '?' with one item only plines */
+
+    /* getobj (RVIP 3c): open the item list at once, unless '-' (bare hands,
+     * fingers) is an answer: then Enter opens it. Once per command, so
+     * leaving the list returns to the letter prompt. */
+    if (objq) {
+        snprintf(objprompt, sizeof objprompt, "%.*s", (int)(b - query - 1), query);
+        objcur = *l != '*' ? *l : 0;
+        if (auto_objlist && l == b + 1) {
+            auto_objlist = 0;
+            if (count)
+                *count = -1;
+            return list;
+        }
+    }
 
     for (;;) {
         if (has)
@@ -612,6 +730,8 @@ static char web_query_key(const char *query, int *count)
         else
             snprintf(promptbuf, sizeof promptbuf, "%s", query);
         k = getkey();
+        if (objq && (k == '\r' || k == '\n'))
+            k = list;
         if (!count || !isdigit(k))
             break;
         has = 1;
@@ -727,33 +847,70 @@ static void init_keymap(void)
     }
 }
 
-/* '?' and '#' with an empty line: every command, pick one to run it */
+/* Enter, '?' and '#' with an empty line: every command, grouped by the
+ * library's cmdlist[] flags; picking one runs it. '<' '>' '#' are queued
+ * as keys (qkey). */
+static int cmd_group(const struct nh_cmd_desc *c)
+{
+    if ((c->flags & CMD_MOVE) || !strcmp(c->name, "autoexplore") || !strcmp(c->name, "travel"))
+        return 0;
+    if (c->flags & CMD_ARG_OBJ)
+        return 1;
+    if (c->flags & (CMD_NOTIME | CMD_HELP))
+        return 3;
+    return 2;
+}
+
 static struct nh_cmd_desc *cmd_menu(const char *title)
 {
-    struct nh_menuitem *items = calloc(ncmds, sizeof *items);
-    int i, n = 0, pick[1];
+    static const char *const heads[] = { "Moving", "Items", "Actions", "Information (no game time)" };
+    static const struct { int key; const char *desc; } extra[] = {
+        { '<', "go up the stairs (off them: walk to the nearest known)" },
+        { '>', "go down the stairs (off them: walk to the nearest known)" },
+        { '#', "type an extended command" },
+    };
+    struct nh_menuitem *items = calloc(ncmds + 8, sizeof *items);
+    int g, i, n = 0, pick[1];
     char k[16];
 
-    for (i = 0; i < ncmds; i++) {
-        unsigned char c = cmds[i].defkey ? cmds[i].defkey : cmds[i].altkey;
+    for (g = 0; g < 4; g++) {
+        items[n].role = MI_HEADING;
+        strcpy(items[n++].caption, heads[g]);
+        for (i = 0; g == 0 && i < 3; i++) {
+            items[n].id = -1 - i, items[n].role = MI_NORMAL, items[n].accel = extra[i].key;
+            snprintf(items[n++].caption, BUFSZ, "%-12c %s", extra[i].key, extra[i].desc);
+        }
+        for (i = 0; i < ncmds; i++) {
+            unsigned char c = cmds[i].defkey ? cmds[i].defkey : cmds[i].altkey;
 
-        if (cmds[i].flags & CMD_DEBUG)
-            continue;
-        if (!c)
-            strcpy(k, "#");
-        else if (c < 32)
-            snprintf(k, sizeof k, "^%c", c + 64);
-        else if (c >= 128)
-            snprintf(k, sizeof k, "M-%c", c - 128);
-        else
-            snprintf(k, sizeof k, "%c", c);
-        items[n].id = i + 1, items[n].role = MI_NORMAL;
-        snprintf(items[n].caption, BUFSZ, "%-4s %-14s %s", k, cmds[i].name, cmds[i].desc);
-        n++;
+            if ((cmds[i].flags & CMD_DEBUG) || cmd_group(&cmds[i]) != g)
+                continue;
+            if (!strcmp(cmds[i].name, "move"))
+                strcpy(k, "hjklyubn");
+            else if (!strcmp(cmds[i].name, "run"))
+                strcpy(k, "HJKLYUBN");
+            else if (!c)
+                snprintf(k, sizeof k, "#%s", cmds[i].name);
+            else if (c < 32)
+                snprintf(k, sizeof k, "^%c", c + 64);
+            else if (c >= 128)
+                snprintf(k, sizeof k, "M-%c", c - 128);
+            else
+                snprintf(k, sizeof k, "%c", c);
+            items[n].id = i + 1, items[n].role = MI_NORMAL;
+            items[n].accel = c > 32 && c < 127 && !isdigit(c) ? c : 0;
+            snprintf(items[n++].caption, BUFSZ, "%-12s %s", k, cmds[i].desc);
+        }
     }
-    n = web_display_menu(items, n, title, PICK_ONE, pick);
+    i = display_menu(items, n, title, PICK_ONE, pick, 3);
     free(items);
-    return n > 0 ? &cmds[pick[0] - 1] : NULL;
+    if (i <= 0)
+        return NULL;
+    if (pick[0] < 0) {
+        qkey = extra[-1 - pick[0]].key;
+        return NULL;
+    }
+    return &cmds[pick[0] - 1];
 }
 
 static struct nh_cmd_desc *ext_cmd(void)
@@ -789,6 +946,15 @@ static const char *get_command(int *count, struct nh_cmd_arg *arg)
     enum nh_direction d;
     int k;
 
+    auto_objlist = 1, objcur = 0;
+    if (*next_cmd) { /* chosen in the inventory: runs now, then reopens it */
+        static char name[32];
+
+        reopen_inv = strcmp(next_cmd, "inventory") != 0;
+        strcpy(name, next_cmd), *next_cmd = 0;
+        *count = 0, *arg = next_arg;
+        return name;
+    }
     for (;;) {
         *count = 0;
         arg->argtype = CMD_ARG_NONE;
@@ -821,7 +987,7 @@ static const char *get_command(int *count, struct nh_cmd_arg *arg)
         }
         if (k == '#')
             cmd = ext_cmd();
-        else if (k == '?')
+        else if (k == '?' || k == '\r' || k == '\n')
             cmd = cmd_menu("Commands (pick one to run it)");
         else
             cmd = keymap[k & 0xff];
@@ -845,6 +1011,19 @@ static const char *get_command(int *count, struct nh_cmd_arg *arg)
     }
 }
 
+/* a monster on the map that is not tame, peaceful or a warning */
+static int hostile_in_view(void)
+{
+    int x, y;
+
+    for (y = 0; y < ROWNO; y++)
+        for (x = 1; x < COLNO; x++)
+            if (dbuf[y][x].mon && !(x == curx && y == cury) &&
+                !(dbuf[y][x].monflags & (MON_TAME | MON_PEACEFUL | MON_WARNING)))
+                return 1;
+    return 0;
+}
+
 static int commandloop(void)
 {
     int state = READY_FOR_INPUT, count;
@@ -863,6 +1042,11 @@ static int commandloop(void)
                 count = -1; /* a key interrupts a multi-turn action */
         }
         state = nh_command(cmd, count, &arg);
+        if (reopen_inv && state == READY_FOR_INPUT) {
+            reopen_inv = 0;
+            if (!*next_cmd && !hostile_in_view())
+                set_next("inventory", 0);
+        }
     }
     return state;
 }

@@ -158,3 +158,57 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   curses client (`nitrohack/src/menu.c`) turns a pick into that action menu —
   `webwin.c` still shows a plain list. Enter is free at the command prompt;
   the `?` command menu (`cmd_menu()`) is the base for the Enter menu.
+
+### Stage 3 (Enter menu + inventory) — done 2026-09-26
+- All in `web/webwin.c` (client); library only: `cmd.c` `cmdlist[]` inventory
+  description (the `?`/Enter menu help text). Page hint in `web/index.html`.
+- **Enter menu:** Enter (and `?`, and `#` + empty line) at the command prompt =
+  `cmd_menu()`: every non-debug command from `nh_get_commands()`, grouped by
+  `cmd_group()` on the `cmdlist[]` flags: Moving (`CMD_MOVE`, autoexplore,
+  travel, plus rows `<` `>` `#`), Items (`CMD_ARG_OBJ`), Actions, Information
+  (`CMD_NOTIME`/`CMD_HELP`). Key column: key, `^X`, `M-x`, `hjklyubn` for move,
+  `#name` for keyless. The chosen command returns into `get_command()` like any
+  key (direction asked if needed); `<` `>` `#` are queued as a key (`qkey`).
+  The command's own printable key selects its row (pop mode `inv = 3` hides
+  the letter column so keys are not shown twice); 8/2/arrows, Enter/5/6,
+  Esc/4/0/., mouse click.
+- **Inventory `i`:** `PICK_INVACTION` lists (`web_display_objects`) run as a
+  cursor list (pop `inv = 1`, keys in `run_pop()`): letter / `+` = main action,
+  `-` drop, `*` or Ctrl+letter examine (`whatisinv` → encyclopedia), Enter /
+  Space / 5 / click = item menu, 0 / . / Esc close, any other key closes and is
+  run as a command. `item_action()`: main = first of takeoff, remove, eat,
+  drink, read, zap, apply, put on, wear, wield offered by the library's
+  `nh_get_object_commands()` for that item, else examine; the item menu is that
+  list itself (its keys work; `/ describe` = examine). **Actions run as the
+  next command:** `set_next(name, invlet)` → `get_command()` returns it with
+  `CMD_ARG_OBJ` (as the curses client's `set_next_command`), so they are logged
+  and replay normally. **Reopen:** `reopen_inv` → after that command's
+  `nh_command()` returns `READY_FOR_INPUT` (multi-turn eating included),
+  `commandloop()` queues `inventory` unless `hostile_in_view()` (a map monster
+  not tame/peaceful/warning).
+- Shift+letter drop: not done, A–Z are item letters (52 slots); `-` drops.
+  Ctrl+j / Ctrl+m can't examine (= LF/CR); `*` works for every item.
+- **Item prompts:** `web_query_key()` recognises getobj's "What do you want to
+  …? [… or ?*]" and answers `?` itself once per command (`auto_objlist`), so the
+  library opens its own list (`display_pickinv`, PICK_ONE, pop `inv = 2`, title
+  = the question, cursor on the first candidate `objcur`); one candidate → `*`
+  (full list: `?` with one item only plines it). Where `-` is a valid answer
+  (wield, engrave, …) the letter prompt stays and Enter opens the list.
+- 3d: no `--More--` (stage 1 `web_pause`), birth checked again: none.
+- **Tested** (own tab, port 8443, 1280×800, Healer "rvipt3"): Enter menu lists
+  all groups (95 rows), 8/2/arrows move, cursor+Enter ran explore, `i` via its
+  key, click ran `#version`; `i` list: `k` ate an apple → list reopened, Numpad2
+  ×8 + Numpad5 → potion menu → `q` quaffed → reopened; `-` dropped gold; `*`
+  and Ctrl+k examined (encyclopedia), Esc → reopened; Numpad0 closed; `s` in
+  the list closed it and searched; `e` → list with cursor on the apples → ate;
+  `w` letter prompt, Enter → list; with a kobold zombie in view eating did not
+  reopen; no console errors. `/dynahack` DB deleted.
+- **Open:** reopened list starts at the top (cursor not kept); item menus have
+  no 4/6 "switch list" (no floor/equipment lists in this client); prompts
+  with `-` start as a letter prompt; `hostile_in_view()` counts remembered
+  detected monsters too.
+- **Next: stage 4 (tiles).** Stage 1 decision: SLASH'EM's NetHack 3.4.3-style
+  set alone (`~/Games/slashem/win/share/{monsters,objects,other}.txt`), 96.6%
+  coverage, gaps filled by stand-ins from the same set (new dragons → existing
+  dragons, gold dragon → yellow …), nearest-neighbour scaling. `redraw()` sends
+  `-1` tile indexes now (`cells[]`); map `nh_symdef` names → tile index in C.
