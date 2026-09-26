@@ -811,6 +811,21 @@ void done(int how)
 
 	/* calculate score, before creating bones [container gold] */
 	umoney = calc_score(how);
+#ifdef __EMSCRIPTEN__
+	{   /* run beacon (web/webwin.c); score = u.urscore, as topten keeps it;
+	       sent before bones/dump/RIP, which wait for keys: a closed tab loses nothing */
+	    void js_beacon(const char *, const char *, const char *, const char *, int, int, int, int);
+	    const char *k = how == ASCENDED || how == DEFIED || how == QUIT || how == ESCAPED ? NULL :
+			    killer_mon ? killer_mon : killbuf;
+	    if (k && !strncmp(k, "a ", 2)) k += 2;
+	    else if (k && !strncmp(k, "an ", 3)) k += 3;
+	    else if (k && !strncmpi(k, "the ", 4)) k += 4;
+	    js_beacon("dynahack", how == ASCENDED || how == DEFIED ? "win" :
+		      how == QUIT || how == ESCAPED ? "quit" : "death",
+		      plname, k, depth(&u.uz), (int) u.urscore, (int) moves, u.ulevel);
+	    killer_mon = NULL;	/* static: must not leak into the next game's report */
+	}
+#endif
 
 	if (bones_ok) {
 	    if (!wizard || (!done_stopprint && yn("Save bones?") == 'y'))
@@ -830,19 +845,6 @@ void done(int how)
 	/* generate a topten entry for this game.
 	   update_topten does not display anything. */
 	update_topten(how, dumpname ? dumpname : "");
-#ifdef __EMSCRIPTEN__
-	{   /* run beacon (web/webwin.c); score = u.urscore, as topten keeps it */
-	    void js_beacon(const char *, const char *, const char *, const char *, int, int, int, int);
-	    const char *k = how == ASCENDED || how == DEFIED || how == QUIT || how == ESCAPED ? NULL :
-			    killer_mon ? killer_mon : killbuf;
-	    if (k && !strncmp(k, "a ", 2)) k += 2;
-	    else if (k && !strncmp(k, "an ", 3)) k += 3;
-	    else if (k && !strncmpi(k, "the ", 4)) k += 4;
-	    js_beacon("dynahack", how == ASCENDED || how == DEFIED ? "win" :
-		      how == QUIT || how == ESCAPED ? "quit" : "death",
-		      plname, k, depth(&u.uz), (int) u.urscore, (int) moves, u.ulevel);
-	}
-#endif
 
 	terminate();
 }

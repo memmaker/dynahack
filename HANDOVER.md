@@ -482,3 +482,26 @@ same origin.
   strategy" linked. Cheats: wizard/explore/tutorial are `nh_start_game()` modes;
   `webwin.c` always passes MODE_NORMAL, no in-game #explore; Export/Import
   rewinds (log save). No exploits listed (none fetched).
+
+### Stage 9 (graveyard + leaderboard) — done 2026-09-26
+- Beacon: `libnitrohack/src/end.c` `done()` (`#ifdef __EMSCRIPTEN__`) calls
+  `js_beacon` (EM_JS in `web/webwin.c`) → `RvipWM.report(q)` (outbox), bare
+  keepalive fetch only if RvipWM is missing. Sent right after `calc_score()`,
+  before bones / dump / RIP / topten (those wait for keys: a tab closed at the
+  tombstone still reported). `ev`: ASCENDED + DEFIED (escaped with the Amulet)
+  = `win`, QUIT + ESCAPED = `quit`, rest = `death`. Win path: `pray.c`
+  `done(ASCENDED)`/`done(DEFIED)`; `check_survival()` never returns TRUE for
+  them (> MAX_SURVIVABLE_DEATH) → the call is reached.
+- Fields sent: `g=dynahack`, `ev`, `name` (`plname`), `killer` (monster deaths:
+  species name `mons_mname()` saved by `done_in_by()` in the static
+  `killer_mon`, reset after the report; other deaths: `killbuf` text, articles
+  stripped), `depth` (`depth(&u.uz)`), `score` (`u.urscore`, = topten points),
+  `turns` (`moves`), `lvl` (`u.ulevel`). Missing: none; `killer` omitted for
+  win/quit.
+- Killer art: `roguelikes-index/killers/make.py` `dynahack()` → 403 PNGs
+  (= NUMMONS) from `web/dist/tiles.png` (3.4.3 set, as shown).
+- Tested (browser pane, local, fetch patched): quit → `ev=quit&name=zzbeacon&
+  depth=1&score=0&turns=1&lvl=1&id=…&at=…`; 503 → URL in `rvip-outbox`, 204 +
+  `RvipWM.flush()` → same URL sent, outbox `[]`. Death (Wizard zaps wand of
+  fire at self) → `ev=death&killer=shot himself with a bolt of fire…`.
+  Win not playable in a test; path checked in code only.
