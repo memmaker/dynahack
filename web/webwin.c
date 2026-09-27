@@ -65,6 +65,7 @@ EM_JS(void, js_beacon, (const char *g, const char *ev, const char *name, const c
 });
 #define idle() emscripten_sleep(15)
 #define web_delay() emscripten_sleep(50)
+#define web_delay_step() emscripten_sleep(40)
 /* let the browser run (keys, drawing) during multi-turn actions */
 static void yield_sometimes(void)
 {
@@ -95,6 +96,7 @@ static void js_sound(const char *name) {}
 static void js_music(int on) {}
 #define idle() ((void) 0)
 #define web_delay() ((void) 0)
+#define web_delay_step() ((void) 0)
 #define yield_sometimes() ((void) 0)
 #endif
 
@@ -1156,14 +1158,20 @@ static int commandloop(void)
     const char *cmd;
     struct nh_cmd_arg arg;
 
+    int exploring = 0;
+
     while (state < GAME_OVER) {
         count = 0;
         cmd = NULL;
         arg.argtype = CMD_ARG_NONE;
-        if (state == READY_FOR_INPUT)
+        if (state == READY_FOR_INPUT) {
             cmd = get_command(&count, &arg);
-        else {
-            yield_sometimes();
+            exploring = cmd && !strcmp(cmd, "autoexplore");
+        } else {
+            if (exploring)
+                web_delay_step(); /* auto-explore: each step gets painted */
+            else
+                yield_sometimes();
             if (state == MULTI_IN_PROGRESS && js_key(1, 0) > 0)
                 count = -1; /* a key interrupts a multi-turn action */
         }
