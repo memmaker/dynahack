@@ -75,25 +75,42 @@
 	function scrollMap() {
 		off = RvipWM.center(cv, (hero.x + 0.5) * cell, (hero.y + 0.5) * cell, COLNO * cell, ROWNO * cell);
 	}
-	function tileSpan(t) {     /* a tile at text size, for menus and the inventory */
-		if (t < 0 || L.text) return '';
+	function tileSpan(t, g) {  /* a tile at text size, for menus and the inventory; text mode: the item's own symbol (C sends it) */
+		if (L.text) return g && g !== ' ' ? esc(g) + ' ' : '';
+		if (t < 0) return '';
 		return '<span class="ti" style="background-position:-' + (t % perRow) + 'em -' + Math.floor(t / perRow) + 'em"></span>';
 	}
 
 	/* ---------- text windows ---------- */
+	/* Visible: lines "M<glyph><name>\t<css>\t<tile>" from C; the tile replaces
+	 * the glyph when tiles are on. C sends no items (see webwin.c redraw()),
+	 * so the shared "Items" heading is left out. */
+	function visIcon(t) {
+		if (L.text || !(t >= 0)) return null;
+		var i = document.createElement('span');
+		i.className = 'ti';
+		i.style.backgroundPosition = '-' + (t % perRow) + 'em -' + Math.floor(t / perRow) + 'em';
+		return i;
+	}
+	function drawVis(t) {
+		var b = $('vis');
+		RvipWM.visible(b, t, visIcon);
+		var h = b.querySelectorAll('.wm-vh');
+		if (h.length > 1) h[h.length - 1].remove();
+	}
 	function drawMsgs() {
 		var ml = $('msg'), body = ml.parentNode, atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
 		ml.innerHTML = log.map(function (m) { return m.old ? '<span class="old">' + esc(m.t) + '</span>' : esc(m.t); }).join('\n') +
 			(prompt ? (log.length ? '\n' : '') + '<span class="pr">' + esc(prompt) + '</span>' : '');
 		if (atEnd || prompt) body.scrollTop = body.scrollHeight;
 	}
-	/* rows "tile \t letter \t 0|1 selected, 2 heading \t colour \t text" */
+	/* rows "tile \t letter \t 0|1 selected, 2 heading \t colour \t glyph \t text" */
 	function rowsHtml(t, cur) {
 		return t.split('\n').filter(function (l, i, a) { return l || i < a.length - 1; }).map(function (l, i) {
-			var f = l.split('\t'), text = f.slice(4).join('\t'), sel = +f[2];
+			var f = l.split('\t'), text = f.slice(5).join('\t'), sel = +f[2];
 			var h = sel === 2 ? '' : f[1] === ' ' ? '    ' : esc(f[1]) + (sel ? ' + ' : ' - ');   /* no letter: keyed by symbol */
 			return '<div class="row' + (i === cur ? ' cur' : '') + (sel === 2 ? '' : ' pick') + '" data-i="' + i + '" style="color:' + PAL[+f[3]] + '">' +
-				h + tileSpan(+f[0]) + esc(text) + '</div>';
+				h + tileSpan(+f[0], f[4]) + esc(text) + '</div>';
 		}).join('');
 	}
 	function drawPop(t) {
@@ -177,7 +194,7 @@
 			else if (id === 1) $('stat').textContent = t.replace(/\n$/, '');
 			else if (id === 2) $('inv').innerHTML = rowsHtml(t, -1);
 			else if (id === 3) drawPop(t);
-			else if (id === 7) $('vis').innerHTML = rowsHtml(t, -1);
+			else if (id === 7) drawVis(t);
 		},
 		/* peek: number of waiting keys; otherwise the next key or -1.
 		 * While the game waits, the files go to IndexedDB every 2 s. */
