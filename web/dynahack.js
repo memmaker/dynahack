@@ -152,7 +152,7 @@
 		measure(); scrollMap(true); draw();
 	}
 
-	function showMode() { $('btn-tiles').textContent = L.text ? 'Tiles: Text' : 'Tiles: NetHack'; }
+	function showMode() { $('btn-tiles').textContent = L.text ? 'Tiles: None' : 'Tiles: NetHack'; }
 	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); showMode(); showAudio(); } }
 	/* ---------- sound (RVIP 6b): C names the effect (web/webwin.c), off by default ---------- */
 	var song = null, town = false;
@@ -359,7 +359,8 @@
 		$('btn-zoom-in').onclick = function () { zoom(4); };
 		$('btn-zoom-out').onclick = function () { zoom(-4); };
 		$('btn-tiles').onclick = function () {
-			L.text = !L.text; showMode(); saveLayout(); draw();
+			L.text = !L.text; showMode(); saveLayout(); draw();   /* NetHack -> None (text) -> NetHack */
+			$('vis')._vis = null;     /* both lists re-render from their cached text right away */
 			[2, 3, 7].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
 		};
 		$('btn-sound').onclick = function () { toggleAudio('sound'); };
