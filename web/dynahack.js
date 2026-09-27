@@ -22,7 +22,7 @@
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var log = [], prompt = '', rects = {}, wm = null;
-	var L = { cell: 0, font: 13, wm: null, text: false, sound: false, music: false }, LAYOUT = DIR + '/web-layout.json';
+	var L = { cell: 0, fs: {}, wm: null, text: false, sound: false, music: false }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -111,11 +111,15 @@
 	function saveLayout() {
 		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
-	function fonts() { ['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
+	function fs(id) { return L.fs[id] || 13; }
+	function fonts() {
+		['msg', 'stat', 'inv', 'vis'].forEach(function (id) { $(id).style.fontSize = fs(id) + 'px'; });
+		$('pop').style.fontSize = fs('msg') + 'px';   /* pop-up text = the message font */
+	}
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true }; } catch (e) { }
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, fs: s.fs || { msg: s.font, stat: s.font, inv: s.font, vis: s.font }, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true }; } catch (e) { }
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
-		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
+		var H = $('game').clientHeight || 600, line = Math.ceil(fs('msg') * 1.4) + 6;
 		wm = RvipWM({
 			area: $('game'), menu: $('btn-layout'),
 			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Log messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
@@ -124,8 +128,8 @@
 			state: L.wm, noFont: 'map',
 			save: function (st) { L.wm = st; saveLayout(); },
 			layout: function (r) { rects = r; fonts(); if (auto) cell = fit(); measure(); scrollMap(true); draw(); },
-			font: function (id, d) { L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
-			onReset: function () { auto = true; L.cell = 0; L.font = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
+			font: function (id, d) { if (['msg', 'stat', 'inv', 'vis'].indexOf(id) < 0) return; L.fs[id] = Math.max(8, Math.min(28, fs(id) + d)); fonts(); saveLayout(); },   /* each window its own size */
+			onReset: function () { auto = true; L.cell = 0; L.fs = {}; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
 		});
 		wm.apply();
 	}
