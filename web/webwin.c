@@ -1010,13 +1010,9 @@ static struct nh_cmd_desc *cmd_menu(const char *title)
         for (i = 0; i < ncmds; i++) {
             unsigned char c = cmds[i].defkey ? cmds[i].defkey : cmds[i].altkey;
 
-            if ((cmds[i].flags & CMD_DEBUG) || cmd_group(&cmds[i]) != g)
-                continue;
-            if (!strcmp(cmds[i].name, "move"))
-                strcpy(k, "hjklyubn");
-            else if (!strcmp(cmds[i].name, "run"))
-                strcpy(k, "HJKLYUBN");
-            else if (!c)
+            if ((cmds[i].flags & CMD_DEBUG) || (cmds[i].flags & CMD_MOVE) || cmd_group(&cmds[i]) != g)
+                continue; /* no steps or runs in the menu (RVIP finetuning) */
+            if (!c)
                 snprintf(k, sizeof k, "#%s", cmds[i].name);
             else if (c < 32)
                 snprintf(k, sizeof k, "^%c", c + 64);
