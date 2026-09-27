@@ -22,7 +22,7 @@
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var log = [], prompt = '', rects = {}, wm = null;
-	var L = { cell: 0, font: 13, wm: null, text: false, sound: false, music: false }, LAYOUT = DIR + '/web-layout.json';
+	var L = { cell: 0, font: 13, wm: null, text: false, sound: false, music: false, face: '', mapFace: '' }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -48,7 +48,7 @@
 		if (!cells) return;
 		ctx.fillStyle = '#000'; ctx.fillRect(0, 0, COLNO * cell, ROWNO * cell);
 		if (L.text) {       /* text mode: the game's own characters and colours */
-			ctx.font = 'bold ' + Math.round(cell * 0.8) + 'px monospace';
+			ctx.font = (L.mapFace ? '' : 'bold ') + Math.round(cell * 0.8) + 'px ' + face(L.mapFace);   /* bitmap fonts: not bold */
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 			for (var ty = 0; ty < ROWNO; ty++)
 				for (var tx = 0; tx < COLNO; tx++) {
@@ -127,9 +127,38 @@
 	function saveLayout() {
 		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
-	function fonts() { ['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; }); }
+	function fonts() {
+		['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) {
+			$(id).style.fontSize = L.font + 'px';
+			$(id).style.fontFamily = L.face ? '"' + L.face + '", monospace' : '';
+		});
+	}
+	/* fonts: the index page's fonts/*.woff (build.sh lists them in fonts.json).
+	 * Top bar = the text windows, pop-ups and Visible; the Map title bar has
+	 * its own (text mode only). Both are kept in web-layout.json. */
+	function face(n) { return n ? '"' + n + '", monospace' : 'monospace'; }
+	function loadFace(n, now) {
+		var redo = function () { fonts(); draw(); };
+		if (!n) { if (now) redo(); return; }
+		var ff = new FontFace(n, 'url(../fonts/' + n + '.woff)');
+		ff.load().then(function () { document.fonts.add(ff); redo(); }).catch(function () { status('Could not load the font ' + n + '.', true); });
+	}
+	var mapSel = document.createElement('select');
+	mapSel.title = 'Map font (text mode)';
+	mapSel.innerHTML = '<option value="">Default font</option>';
+	mapSel.addEventListener('pointerdown', function (e) { e.stopPropagation(); });   /* not a window drag */
+	mapSel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+	function renderMapSel() {
+		var bs = document.querySelector('#t-map .wm-btns');
+		if (bs && mapSel.parentNode !== bs) bs.insertBefore(mapSel, bs.firstChild);
+		mapSel.hidden = !L.text;
+		mapSel.value = L.mapFace || '';
+		$('sel-font').value = L.face || '';     /* if fonts.json came before the layout */
+	}
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true }; } catch (e) { }
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true,
+			face: typeof s.face === 'string' ? s.face : '', mapFace: typeof s.mapFace === 'string' ? s.mapFace : '' }; } catch (e) { }
+		loadFace(L.face); loadFace(L.mapFace);
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
 		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
 		wm = RvipWM({
@@ -142,9 +171,10 @@
 			layout: function (r) { rects = r; fonts(); if (auto) cell = fit(); measure(); scrollMap(true); draw(); },
 			font: function (id, d) { if (id === 'map') { zoom(4 * d); return; }   /* A−/A+ on the Map title bar = zoom */
 				L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
-			onReset: function () { auto = true; L.cell = 0; L.font = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
+			onReset: function () { auto = true; L.cell = 0; L.font = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); renderMapSel(); }
 		});
 		wm.apply();
+		renderMapSel();
 	}
 	function zoom(d) {
 		auto = false;
@@ -358,7 +388,7 @@
 		$('import-file').onchange = function () { if (this.files[0]) importSave(this.files[0]); this.value = ''; };
 		$('btn-new').onclick = newGame;
 		$('btn-tiles').onclick = function () {
-			L.text = !L.text; showMode(); saveLayout(); draw();   /* NetHack -> None (text) -> NetHack */
+			L.text = !L.text; showMode(); renderMapSel(); saveLayout(); draw();   /* NetHack -> None (text) -> NetHack */
 			$('vis')._vis = null;     /* both lists re-render from their cached text right away */
 			[2, 3, 7].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
 		};
@@ -366,6 +396,15 @@
 		$('chk-music').onchange = function () { toggleAudio('music'); };
 		RvipWM.dropdown($('btn-audio'), $('menu-audio'));
 		RvipWM.dropdown($('btn-file'), $('menu-file'));
+		fetch('fonts.json').then(function (r) { return r.json(); }).then(function (list) {
+			[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(function (a) {
+				list.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n.replace(/^Web(Plus|437)_/, '').replace(/_/g, ' '); a[0].appendChild(o); });
+				a[0].value = L[a[1]] || '';
+			});
+		}).catch(function () { });
+		[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(function (a) {
+			a[0].onchange = function () { L[a[1]] = this.value; saveLayout(); loadFace(this.value, true); this.blur(); };
+		});
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {
 			b.addEventListener('mousedown', function (e) { e.preventDefault(); });

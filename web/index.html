@@ -28,8 +28,9 @@
 	#bar .sp { flex: 1; }
 	#bar .hint { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 	#bar .hint kbd { font-size: 11px; line-height: 1.3; min-width: 0; }
-	button { background: #22222a; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+	button, #bar select, .win > .t select { background: #22222a; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
 		padding: 2px 10px; font: inherit; cursor: pointer; }
+	.win > .t select { font-size: 11px; height: 16px; padding: 0 2px; margin-left: 2px; }
 	button:hover { border-color: var(--accent); }
 	button.on { background: var(--accent); color: #000; border-color: var(--accent); }
 	#status { position: fixed; left: 50%; top: 40px; transform: translateX(-50%); z-index: 5;
@@ -88,6 +89,7 @@
 	<span class="sep"></span>
 	<button id="btn-layout" title="Windows: layout, show and hide">Windows ▾</button>
 	<button id="btn-tiles" title="Map tiles: NetHack 3.4.3 or none (text)">Tiles: NetHack</button>
+	<select id="sel-font" title="Font for the text windows (the map has its own in text mode)"><option value="">Font: default</option></select>
 	<button id="btn-audio" title="Sound effects and music">Audio ▾</button>
 	<div id="menu-audio">
 		<label title="Sound effects on or off"><input type="checkbox" id="chk-sound"> Sound effects</label>
