@@ -63,10 +63,6 @@
 				var v = cells[y * COLNO + x];
 				blit((v >> 16) - 1, x, y); blit((v & 0xffff) - 1, x, y);
 			}
-		if (hero.x && L.text) {
-			ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-			ctx.strokeRect(hero.x * cell + 0.5, hero.y * cell + 0.5, cell - 1, cell - 1);
-		}
 	}
 	function blit(t, x, y) {
 		if (t >= 0) ctx.drawImage(sheet, (t % perRow) * 16, Math.floor(t / perRow) * 16, 16, 16, x * cell, y * cell, cell, cell);
