@@ -99,10 +99,10 @@
 		if (h.length > 1) h[h.length - 1].remove();
 	}
 	function drawMsgs() {
-		var ml = $('msg'), body = ml.parentNode, atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+		var ml = $('msg'), body = ml.parentNode;
 		ml.innerHTML = log.map(function (m) { return m.old ? '<span class="old">' + esc(m.t) + '</span>' : esc(m.t); }).join('\n') +
 			(prompt ? (log.length ? '\n' : '') + '<span class="pr">' + esc(prompt) + '</span>' : '');
-		if (atEnd || prompt) body.scrollTop = body.scrollHeight;
+		body.scrollTop = body.scrollHeight;   /* the newest message stays in view */
 	}
 	/* rows "tile \t letter \t 0|1 selected, 2 heading \t colour \t glyph \t text" */
 	function rowsHtml(t, cur) {
