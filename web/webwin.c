@@ -990,8 +990,8 @@ static struct nh_cmd_desc *cmd_menu(const char *title)
 {
     static const char *const heads[] = { "Moving", "Items", "Actions", "Information (no game time)" };
     static const struct { int key; const char *desc; } extra[] = {
-        { '<', "go up the stairs (off them: walk to the nearest known)" },
-        { '>', "go down the stairs (off them: walk to the nearest known)" },
+        { '<', "go up the stairs (off them: walk to the nearest known, press again to take them)" },
+        { '>', "go down the stairs (off them: walk to the nearest known, press again to take them)" },
         { '#', "type an extended command" },
     };
     struct nh_menuitem *items = calloc(ncmds + 8, sizeof *items);
