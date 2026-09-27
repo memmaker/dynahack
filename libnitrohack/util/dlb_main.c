@@ -19,7 +19,7 @@ extern boolean open_library(const char *,library *);
 extern void close_library(library *);
 
 char *eos(char *);	/* also used by dlb.c */
-FILE *fopen_datafile(const char *,const char *);
+FILE *fopen_datafile(const char *,const char *,int);
 
 static void Write(int,char *,long);
 static void usage(void);
@@ -114,7 +114,7 @@ char *eos(char *s)
 }
 
 /* open_library(dlb.c) needs this (which normally comes from src/files.c) */
-FILE *fopen_datafile(const char *filename, const char *mode)
+FILE *fopen_datafile(const char *filename, const char *mode, int prefix)
 {
     return fopen(filename, mode);
 }
