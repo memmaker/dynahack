@@ -102,10 +102,7 @@
 		var nl = t.indexOf('\n'), head = t.slice(0, nl).split('\t'), top = +head[0], cur = +head[1], p = head.slice(2).join('\t');
 		pop.innerHTML = (p ? '<div class="pp">' + esc(p) + '</div>' : '') + '<div class="rows">' + rowsHtml(t.slice(nl + 1), cur) + '</div>';
 		pop.hidden = false;
-		var m = rects.map || [0, 0, 600, 400];
-		pop.style.maxWidth = m[2] - 8 + 'px'; pop.style.maxHeight = m[3] - 8 + 'px';
-		pop.style.left = m[0] + Math.max(4, (m[2] - pop.offsetWidth) / 2) + 'px';
-		pop.style.top = m[1] + Math.max(4, (m[3] - pop.offsetHeight) / 2) + 'px';
+		RvipWM.popup(pop, { center: true });
 		var rows = pop.querySelectorAll('.row'), r = rows[cur >= 0 ? cur : top];
 		if (r) { if (cur >= 0) r.scrollIntoView({ block: 'nearest' }); else pop.scrollTop = r.offsetTop - pop.firstChild.offsetHeight; }
 	}
