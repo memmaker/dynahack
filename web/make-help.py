@@ -23,9 +23,9 @@ kbd = docs.kbd
 esc = html.escape
 
 WEB = '''<ul>
-<li>The map is drawn with the NetHack 3.4.3 16×16 tiles (DynaHack has none of its own; its new monsters borrow look-alikes). <em>Zoom −</em> / <em>Zoom +</em> change the tile size, <em>Tiles</em> switches to the game's characters; <em>Windows</em> hides, shows and rearranges the windows (drag a title bar, drag the gaps).</li>
+<li>The map is drawn with the NetHack 3.4.3 16×16 tiles (DynaHack has none of its own; its new monsters borrow look-alikes). <em>A−</em> / <em>A+</em> on the Map title bar change the tile size, <em>Tiles</em> switches to None (the game's characters); <em>Windows</em> hides, shows and rearranges the windows (drag a title bar, drag the gaps).</li>
 <li><strong>Keys:</strong> <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><kbd>y</kbd><kbd>u</kbd><kbd>b</kbd><kbd>n</kbd> or the arrow keys move you (Home, PgUp, End, PgDn for the diagonals); capital letters run. Alt+letter gives the M- commands. <kbd>_</kbd> travels to a spot you pick; click a menu row to pick it. The game's own options menu is not available here.</li>
-<li><em>Sound</em> and <em>Music</em> in the top bar are off at first: Sound plays short effects (hits, misses, doors, "You hear", stairs, level up), Music a town tune in Mine Town, the Town and the Black Market. The choice is remembered.</li>
+<li><em>Sound effects</em> and <em>Music</em> under <em>Audio</em> in the top bar are off at first: Sound plays short effects (hits, misses, doors, "You hear", stairs, level up), Music a town tune in Mine Town, the Town and the Black Market. The choice is remembered.</li>
 <li>Browsers keep a few shortcuts for themselves (<kbd>Ctrl+W</kbd>, <kbd>Ctrl+T</kbd>, <kbd>Ctrl+N</kbd>, and <kbd>Cmd</kbd> shortcuts on a Mac), so those never reach the game.</li>
 <li>If the game ever crashes, a message appears at the top; reload the page: the game log is replayed up to your last move.</li>
 </ul>'''

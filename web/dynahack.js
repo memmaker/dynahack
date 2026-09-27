@@ -158,8 +158,8 @@
 	/* ---------- sound (RVIP 6b): C names the effect (web/webwin.c), off by default ---------- */
 	var song = null, town = false;
 	function showAudio() {
-		$('btn-sound').textContent = 'Sound: ' + (L.sound ? 'on' : 'off');
-		$('btn-music').textContent = 'Music: ' + (L.music ? 'on' : 'off');
+		$('chk-sound').checked = L.sound;
+		$('chk-music').checked = L.music;
 		if (L.music && town) {     /* the music file loads on first play only */
 			if (!song) { song = new Audio('sound/town.wav'); song.loop = true; song.volume = 0.4; }
 			song.play().catch(function () { });
@@ -362,8 +362,10 @@
 			$('vis')._vis = null;     /* both lists re-render from their cached text right away */
 			[2, 3, 7].forEach(function (id) { var t = nh.last[id]; if (t != null) { nh.last[id] = null; nh.text(id, t); } });
 		};
-		$('btn-sound').onclick = function () { toggleAudio('sound'); };
-		$('btn-music').onclick = function () { toggleAudio('music'); };
+		$('chk-sound').onchange = function () { toggleAudio('sound'); };
+		$('chk-music').onchange = function () { toggleAudio('music'); };
+		RvipWM.dropdown($('btn-audio'), $('menu-audio'));
+		RvipWM.dropdown($('btn-file'), $('menu-file'));
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {
 			b.addEventListener('mousedown', function (e) { e.preventDefault(); });
