@@ -22,7 +22,7 @@
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var log = [], prompt = '', rects = {}, wm = null;
-	var L = { cell: 0, fs: {}, wm: null, text: false, sound: false, music: false, face: '', mapFace: '' }, LAYOUT = DIR + '/web-layout.json';
+	var L = { cell: 0, wm: null, text: false, sound: false, music: false, face: '', mapFace: '' }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -124,10 +124,9 @@
 	function saveLayout() {
 		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
-	function fs(id) { return L.fs[id] || 13; }
 	function fonts() {
 		['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) {
-			$(id).style.fontSize = fs(id === 'pop' ? 'msg' : id) + 'px';
+			if (id === 'pop') $(id).style.fontSize = RvipWM.fontSize('msg') + 'px';   /* pop-up text = the message font */
 			$(id).style.fontFamily = L.face ? '"' + L.face + '", monospace' : '';
 		});
 	}
@@ -154,11 +153,12 @@
 		$('sel-font').value = L.face || '';     /* if fonts.json came before the layout */
 	}
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, fs: s.fs || { msg: s.font, stat: s.font, inv: s.font, vis: s.font }, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true,
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true,
 			face: typeof s.face === 'string' ? s.face : '', mapFace: typeof s.mapFace === 'string' ? s.mapFace : '' }; } catch (e) { }
+		if (s && L.wm && !L.wm.fs) L.wm.fs = s.fs || (s.font ? { msg: s.font, stat: s.font, inv: s.font, vis: s.font } : undefined);   /* old layout: sizes move to the WM */
 		loadFace(L.face); loadFace(L.mapFace);
 		if (L.cell >= 12 && L.cell <= 64) { cell = L.cell; auto = false; }
-		var H = $('game').clientHeight || 600, line = Math.ceil(fs('msg') * 1.4) + 6;
+		var H = $('game').clientHeight || 600, line = Math.ceil(RvipWM.fontSize('msg') * 1.4) + 6;
 		wm = RvipWM({
 			area: $('game'), menu: $('btn-layout'),
 			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Log messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
@@ -167,9 +167,8 @@
 			state: L.wm,
 			save: function (st) { L.wm = st; saveLayout(); },
 			layout: function (r) { rects = r; fonts(); if (auto) cell = fit(); measure(); scrollMap(true); draw(); },
-			font: function (id, d) { if (id === 'map') { zoom(4 * d); return; }   /* A−/A+ on the Map title bar = zoom */
-				L.fs[id] = Math.max(8, Math.min(28, fs(id) + d)); fonts(); saveLayout(); },
-			onReset: function () { auto = true; L.cell = 0; L.fs = {}; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); renderMapSel(); }
+			zoom: { map: function (size, d) { zoom(4 * d); }, msg: fonts },   /* A−/A+ on the Map title bar = zoom; the rest the WM sizes */
+			onReset: function () { auto = true; L.cell = 0; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); renderMapSel(); }
 		});
 		wm.apply();
 		renderMapSel();
