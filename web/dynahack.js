@@ -17,7 +17,7 @@
 	var KEYS = { ArrowUp: 0x101, ArrowDown: 0x102, ArrowLeft: 0x103, ArrowRight: 0x104, Home: 0x105, PageUp: 0x106,
 		End: 0x107, PageDown: 0x108, Enter: 13, Escape: 27, Backspace: 8, Delete: 8, Tab: 9 };
 
-	var events = [], running = false, lastSync = 0;
+	var events = [], lastSync = 0;
 	var cells = null, chars = null, hero = { x: 0, y: 0, lev: -1 }, off = { x: 0, y: 0 };
 	var cv, ctx, cell = 32, auto = true, sheet = new Image(), perRow = 40;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -25,10 +25,6 @@
 	var L = { cell: 0, wm: null, text: false, sound: false, music: false, face: '', mapFace: '' }, LAYOUT = DIR + '/web-layout.json';
 
 	function $(id) { return document.getElementById(id); }
-	function status(msg, isError) {
-		var s = $('status');
-		s.textContent = msg; s.hidden = !msg; s.classList.toggle('error', !!isError);
-	}
 	function esc(t) { return t.replace(/[&<>]/g, function (c) { return '&' + (c === '&' ? 'amp' : c === '<' ? 'lt' : 'gt') + ';'; }); }
 
 	/* ---------- map ---------- */
@@ -122,7 +118,7 @@
 
 	/* ---------- layout (shared rvip-wm.js, RVIP.md 5b) ---------- */
 	function saveLayout() {
-		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
+		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); app.sync(); } catch (e) { console.warn('layout not saved', e); }
 	}
 	function fonts() {
 		['msg', 'stat', 'inv', 'vis', 'pop'].forEach(function (id) {
@@ -138,7 +134,7 @@
 		var redo = function () { fonts(); draw(); };
 		if (!n) { if (now) redo(); return; }
 		var ff = new FontFace(n, 'url(../fonts/' + n + '.woff)');
-		ff.load().then(function () { document.fonts.add(ff); redo(); }).catch(function () { status('Could not load the font ' + n + '.', true); });
+		ff.load().then(function () { document.fonts.add(ff); redo(); }).catch(function () { app.status('Could not load the font ' + n + '.', true); });
 	}
 	var mapSel = document.createElement('select');
 	mapSel.title = 'Map font (text mode)';
@@ -181,7 +177,7 @@
 	}
 
 	function showMode() { $('btn-tiles').textContent = L.text ? 'Tiles: None' : 'Tiles: NetHack'; }
-	function showGame() { if ($('game').hidden) { $('game').hidden = false; status(''); measure(); makeWM(); showMode(); showAudio(); } }
+	function showGame() { if ($('game').hidden) { $('game').hidden = false; app.status(''); measure(); makeWM(); showMode(); showAudio(); } }
 	/* ---------- sound (RVIP 6b): C names the effect (web/webwin.c), off by default ---------- */
 	var song = null, town = false;
 	function showAudio() {
@@ -227,13 +223,13 @@
 			if (peek) return events.length;
 			if (events.length) return events.shift();
 			var now = performance.now();
-			if (now - lastSync > 2000) { lastSync = now; syncFiles(); }
+			if (now - lastSync > 2000) { lastSync = now; app.sync(); }
 			return -1;
 		},
 		end: function () {
-			running = false;
+			app.running = false;
 			return new Promise(function (done) {
-				syncFiles(function () {
+				app.sync(function () {
 					$('overlay-msg').textContent = saveFile() ? 'Your game has been saved. Play again to continue it.' : 'The game is over.';
 					$('overlay').hidden = false;
 					done();
@@ -244,11 +240,7 @@
 
 	/* ---------- input ---------- */
 	function onKey(e) {
-		if (!$('help').hidden) {     /* the guide is open: the game gets no keys */
-			if (e.key === 'Escape') { $('help').hidden = true; e.preventDefault(); }
-			return;
-		}
-		if (!running || e.isComposing || e.metaKey || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+		if (!app.running || e.isComposing || e.metaKey || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
 		var k = e.key, c;
 		if (e.code === 'NumpadEnter') c = 13;
 		else if (KEYS[k] !== undefined) c = KEYS[k];
@@ -265,68 +257,23 @@
 		e.preventDefault();
 	}
 
-	/* ---------- saves: IndexedDB (IDBFS) ---------- */
-	var syncing = false, syncAgain = false, pendingCbs = [];
-	function syncFiles(cb) {
-		if (!Module.FS) { if (cb) cb(); return; }
-		if (typeof cb === 'function') pendingCbs.push(cb);
-		if (syncing) { syncAgain = true; return; }
-		syncing = true;
-		var cbs = pendingCbs; pendingCbs = [];
-		Module.FS.syncfs(false, function (err) {
-			syncing = false;
-			if (err) status('Saving to browser storage (IndexedDB) failed: ' + err + '. Use "Export save" to keep a copy.', true);
-			cbs.forEach(function (f) { f(err); });
-			if (syncAgain) { syncAgain = false; syncFiles(); }
-		});
-	}
+	/* ---------- saves: IndexedDB (IDBFS); Export / Import / New game in rvip-app.js ---------- */
 	function ls(d, re) { try { return Module.FS.readdir(d).filter(function (f) { return re.test(f); }); } catch (e) { return []; } }
 	/* save/<time>_<name>.nhgame: the game log (DynaHack replays it on restore) */
 	function saveFile() { return ls(SAVES, /\.nhgame$/)[0] || null; }
-	function exportSave() {
-		var f = saveFile();
-		if (!f) { status('There is no game in this browser yet.', true); setTimeout(function () { status(''); }, 2500); return; }
-		var a = document.createElement('a');
-		a.href = URL.createObjectURL(new Blob([Module.FS.readFile(SAVES + '/' + f)], { type: 'application/octet-stream' }));
-		a.download = f;
-		document.body.appendChild(a); a.click();
-		setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-	}
 	function clearGame() {
 		ls(SAVES, /\.nhgame$/).forEach(function (f) { Module.FS.unlink(SAVES + '/' + f); });
 	}
-	function importSave(file) {
-		if (!/\.nhgame$/.test(file.name)) { status('A DynaHack save is a .nhgame file.', true); return; }
-		var r = new FileReader();
-		r.onload = function () {
-			if (!confirm('Replace the current game with "' + file.name + '"?')) return;
-			running = false;
-			clearGame();
-			Module.FS.writeFile(SAVES + '/' + file.name.replace(/[^\w.-]/g, '_'), new Uint8Array(r.result));
-			syncFiles(function (err) { if (!err) location.reload(); });
-		};
-		r.readAsArrayBuffer(file);
-	}
-	function newGame() {
-		if (!confirm('Delete the saved game in this browser and start a new one?')) return;
-		running = false;
-		clearGame();
-		syncFiles(function (err) { if (!err) location.reload(); });
-	}
-
-	/* ---------- help: help.html (web/make-help.py, stage 6), fetched on first open ---------- */
-	var helpLoaded = false;
-	function toggleHelp() {
-		var h = $('help');
-		h.hidden = !h.hidden;
-		if (!h.hidden && !helpLoaded) {
-			helpLoaded = true;
-			fetch('help.html').then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-				.then(function (t) { $('help-body').innerHTML = t; })
-				.catch(function (err) { helpLoaded = false; $('help-body').textContent = 'Could not load the guide (' + err + '). Press ? or Enter in the game for its command list.'; });
-		}
-		if (!h.hidden) $('help-body').focus();
-	}
+	var app = RvipApp({
+		name: 'dynahack',
+		save: function () { var f = saveFile(); return f ? SAVES + '/' + f : null; },
+		clear: clearGame,
+		put: function (file, data) {
+			if (!/\.nhgame$/.test(file.name)) return 'A DynaHack save is a .nhgame file.';
+			Module.FS.writeFile(SAVES + '/' + file.name.replace(/[^\w.-]/g, '_'), data);
+		},
+		helpText: 'Press ? or Enter in the game for its command list.'
+	});
 
 	/* ---------- startup ---------- */
 	window.Module = {
@@ -337,34 +284,19 @@
 			FS.mount(Module.IDBFS, {}, DIR);
 			Module.addRunDependency('idbfs');
 			FS.syncfs(true, function (err) {
-				if (err) status('Could not read saved games from IndexedDB (' + err + '). Saving may not work in this browser mode.', true);
+				if (err) app.status('Could not read saved games from IndexedDB (' + err + '). Saving may not work in this browser mode.', true);
 				Module.removeRunDependency('idbfs');
 			});
 		}],
-		onRuntimeInitialized: function () { running = true; },
+		onRuntimeInitialized: function () { app.running = true; },
 		print: function (s) { console.log(s); },
 		printErr: function (s) { console.warn(s); },
-		setStatus: function (s) { if (s && !running) status(s.replace(/\(\d+\/\d+\)/, '').trim() || 'Loading…'); },
-		onAbort: function (what) { crashed(what); }
+		setStatus: function (s) { if (s && !app.running) app.status(s.replace(/\(\d+\/\d+\)/, '').trim() || 'Loading…'); },
+		onAbort: function (what) { app.crashed(what); }
 	};
-	function crashed(err) {
-		if (!running) return;
-		running = false;
-		var msg = (err && (err.message || err.reason && err.reason.message)) || String(err);
-		console.error('[dynahack] crash:', err);
-		status('The game crashed (' + msg + '). Reload the page: the game log replays up to the last command.', true);
-	}
-	window.addEventListener('unhandledrejection', function (e) {
-		if (e.reason && e.reason.name === 'ExitStatus') return;   /* exit() is the normal end */
-		crashed(e.reason);
-	});
-	window.addEventListener('error', function (e) {
-		if (e.error && e.error.name === 'ExitStatus') return;
-		if (e.error instanceof WebAssembly.RuntimeError || /dynahack-core/.test(e.filename || '')) crashed(e.error || e.message);
-	});
-	document.addEventListener('visibilitychange', function () { if (document.hidden) syncFiles(); });
-	window.addEventListener('pagehide', function () { syncFiles(); });
-	setInterval(function () { if (running) syncFiles(); }, 15000);
+	document.addEventListener('visibilitychange', function () { if (document.hidden) app.sync(); });
+	window.addEventListener('pagehide', function () { app.sync(); });
+	setInterval(function () { if (app.running) app.sync(); }, 15000);
 
 	window.addEventListener('resize', function () { if (wm) wm.apply(); });
 	document.addEventListener('keydown', onKey);
@@ -376,14 +308,8 @@
 		cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 		$('pop').addEventListener('mousedown', function (e) {
 			var r = e.target.closest('.row.pick');
-			if (r && running) { events.push(0x20000 | +r.dataset.i); e.preventDefault(); }
+			if (r && app.running) { events.push(0x20000 | +r.dataset.i); e.preventDefault(); }
 		});
-		$('btn-help').onclick = toggleHelp;
-		$('help-close').onclick = toggleHelp;
-		$('btn-export').onclick = exportSave;
-		$('btn-import').onclick = function () { $('import-file').click(); };
-		$('import-file').onchange = function () { if (this.files[0]) importSave(this.files[0]); this.value = ''; };
-		$('btn-new').onclick = newGame;
 		$('btn-tiles').onclick = function () {
 			L.text = !L.text; showMode(); renderMapSel(); saveLayout(); draw();   /* NetHack -> None (text) -> NetHack */
 			$('vis')._vis = null;     /* both lists re-render from their cached text right away */
