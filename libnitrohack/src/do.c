@@ -801,6 +801,20 @@ drop_done:
 /* on a ladder, used in goto_level */
 static boolean at_ladder = FALSE;
 
+/* RVIP: set only by the "stairwalk" command, so the plain "move" up/down in
+ * game logs from before it still replays as "You can't go up/down here." */
+static boolean stairwalk_ok = FALSE;
+
+int dostairwalk(int dx, int dy, int dz)
+{
+	int r;
+
+	stairwalk_ok = TRUE;
+	r = domovecmd(0, 0, dz);
+	stairwalk_ok = FALSE;
+	return r;
+}
+
 /* RVIP: '<'/'>' off the stairs: walk to the nearest known staircase or
  * ladder of that kind with the travel code; command_input() takes it on
  * arrival. Known = remembered as stairs on the map. */
@@ -823,7 +837,7 @@ static int walk_to_stairs(boolean up)
 	    d = distmin(u.ux, u.uy, s[i]->sx, s[i]->sy);
 	    if (best < 0 || d < bd) best = i, bd = d;
 	}
-	if (best < 0 || Stunned || Confusion)
+	if (!stairwalk_ok || best < 0 || Stunned || Confusion)
 	    return -1;
 	u.tx = s[best]->sx;
 	u.ty = s[best]->sy;

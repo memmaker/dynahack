@@ -132,6 +132,11 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   branch, at `u.tx/u.ty` with travel still on → `nomul` + `doup()`/`dodown()`.
   `nomul()` (`hack.c`) clears `rvip_stairs`, so any disturbance cancels;
   pressing again resumes (or climbs when already there).
+- **Replay-safe `<`/`>` (2026-09-28):** the walk runs only under the new
+  command `stairwalk` (`do.c` `dostairwalk()`, `cmdlist[]`), which
+  `webwin.c` sends for `<`/`>`; plain `move` up/down is stock again. Logs name
+  their commands, so games logged before this (with `move`) replay unchanged
+  ("You can't go up here."), and new logs replay the walk.
 - **Help:** `?` menu = `cmdlist[]` descriptions: autoexplore "explore (also ~)
   until a monster, message or key stops it", move "…< > stairs, off them walk
   to the nearest known ones"; header hint in `web/index.html`.

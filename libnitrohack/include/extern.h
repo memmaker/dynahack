@@ -614,6 +614,7 @@ extern boolean check_capacity(const char *);
 extern int inv_cnt(void);
 extern long money_cnt(struct obj *);
 extern int domovecmd(int,int,int);
+extern int dostairwalk(int,int,int);
 extern int domovecmd_nopickup(int,int,int);
 extern int dorun(int,int,int);
 extern int dorun_nopickup(int,int,int);

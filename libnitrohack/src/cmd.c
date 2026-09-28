@@ -141,7 +141,8 @@ const struct cmd_desc cmdlist[] = {
 	{"whatisinv", "describe an object in your inventory", 0, 0, TRUE, dowhatisinv, CMD_HELP | CMD_ARG_NONE | CMD_ARG_OBJ | CMD_NOTIME},
 	{"zap", "zap a wand to use its magic", 'z', 0, FALSE, dozap, CMD_ARG_NONE | CMD_ARG_OBJ},
 	
-	{"move", "move one step; < > stairs, off them walk to the nearest known ones (press again to take them)", 0, 0, FALSE, domovecmd, CMD_ARG_DIR | CMD_MOVE},
+	{"move", "move one step", 0, 0, FALSE, domovecmd, CMD_ARG_DIR | CMD_MOVE},
+	{"stairwalk", "< > take the stairs; off them walk to the nearest known ones (press again to take them)", 0, 0, FALSE, dostairwalk, CMD_ARG_DIR | CMD_MOVE},
 	{"move nopickup", "move, but don't fight or pick anything up", 'm', 0, FALSE, domovecmd_nopickup, CMD_ARG_DIR | CMD_MOVE},
 	{"run", "run until something interesting is seen", 0, 0, FALSE, dorun, CMD_ARG_DIR | CMD_MOVE},
 	{"run nopickup", "run without picking anything up", 0, 'M', FALSE, dorun_nopickup, CMD_ARG_DIR | CMD_MOVE},

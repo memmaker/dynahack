@@ -1120,7 +1120,7 @@ static const char *get_command(int *count, struct nh_cmd_arg *arg)
         /* movement: hjklyubn move, shifted run, Ctrl go2, < > up/down */
         if ((d = key_dir(k)) != DIR_NONE && !isdigit(k)) {
             arg->argtype = CMD_ARG_DIR, arg->d = d;
-            return "move";
+            return d == DIR_UP || d == DIR_DOWN ? "stairwalk" : "move";
         }
         if (k < 128 && isupper(k) && strchr(dirs, tolower(k)) && tolower(k) != ' ') {
             arg->argtype = CMD_ARG_DIR, arg->d = key_dir(tolower(k));
