@@ -9,9 +9,10 @@
  *            symbols from nh_get_drawing_info), cursor x/y, level
  *   js_text: 0 prompt, 1 status lines, 2 inventory, 3 pop-up, 4 new
  *            message, 5 messages so far are old, 6 replace last message,
- *            7 visible monsters, 8 prompt line over the map (question or
+ *            7 visible monsters (RvipWM.visible lines), 8 prompt line over the map (question or
  *            the newest message of this action).
- *            Rows are tab-separated (tile, letter, sel, colour, text).
+ *            Rows are tab-separated (tile, letter, sel, colour, glyph,
+ *            text); glyph = the item's own symbol, shown in text mode.
  * Keys come from Module.nh.key(); Asyncify lets the game wait for them.
  * Without __EMSCRIPTEN__ the JS calls are stubs that feed random keys:
  * a headless driver for the ASan run (web/asan.sh). */
@@ -65,6 +66,7 @@ EM_JS(void, js_beacon, (const char *g, const char *ev, const char *name, const c
 });
 #define idle() emscripten_sleep(15)
 #define web_delay() emscripten_sleep(50)
+#define web_delay_step() emscripten_sleep(40)
 /* let the browser run (keys, drawing) during multi-turn actions */
 static void yield_sometimes(void)
 {
@@ -95,10 +97,11 @@ static void js_sound(const char *name) {}
 static void js_music(int on) {}
 #define idle() ((void) 0)
 #define web_delay() ((void) 0)
+#define web_delay_step() ((void) 0)
 #define yield_sometimes() ((void) 0)
 #endif
 
-struct row { char ch; int sel, clr, tile; char *s; }; /* sel: 0/1, 2 = heading */
+struct row { char ch, g; int sel, clr, tile; char *s; }; /* sel: 0/1, 2 = heading */
 /* inv: 1 = inventory list (letter/+ main action, Ctrl+letter or * examine,
  * - drop, Enter/Space/5/click item menu, 0/. close, other keys = commands),
  * 2 = item prompt / item menu (5/6 choose, 4/0/. close), 3 = 2 with the
@@ -151,6 +154,13 @@ static int pal(int c)
     c &= CLR_MASK;
     return (c >= CLR_MAX || c == NO_COLOR) ? CLR_GRAY : c;
 }
+
+/* the page's colours for pal() (web/dynahack.js PAL), for lines that carry
+ * a CSS colour (Visible window) */
+static const char *const css[16] = {
+    "#555", "#c82828", "#28aa28", "#aa6e28", "#3c3cdc", "#aa28aa", "#28aaaa", "#c8c8c8",
+    "#646464", "#ff8c00", "#5aff5a", "#ffff50", "#6e6eff", "#ff5aff", "#5affff", "#fff"
+};
 
 /* ---------- map: the top layer of each cell, like nitrohack's mapglyph ---------- */
 
@@ -260,9 +270,11 @@ static void redraw(void)
 
                 if (!e->mon || e->mon > di->num_monsters || (x == curx && y == cury))
                     continue;
-                tadd("%d\t \t0\t%d\t%s%s%s\n", tile_mon[e->mon - 1], pal(di->monsters[e->mon - 1].color),
+                /* RvipWM.visible line: M<glyph><name>\t<css>\t<tile> */
+                tadd("M%c%s%s%s\t%s\t%d\n", di->monsters[e->mon - 1].ch,
                      e->monflags & MON_TAME ? "tame " : e->monflags & MON_PEACEFUL ? "peaceful " : "",
-                     di->monsters[e->mon - 1].symname, e->monflags & MON_DETECTED ? " (sensed)" : "");
+                     di->monsters[e->mon - 1].symname, e->monflags & MON_DETECTED ? " (sensed)" : "",
+                     css[pal(di->monsters[e->mon - 1].color)], tile_mon[e->mon - 1]);
             }
         js_text(7, tbuf);
     }
@@ -277,7 +289,8 @@ static void redraw(void)
         for (i = 0; i < popup->n; i++) {
             struct row *r = &popup->rows[i];
 
-            tadd("%d\t%c\t%d\t%d\t%s\n", r->sel == 2 ? -1 : r->tile, r->ch && popup->inv != 3 ? r->ch : ' ', r->sel, r->clr, r->s);
+            tadd("%d\t%c\t%d\t%d\t%c\t%s\n", r->sel == 2 ? -1 : r->tile, r->ch && popup->inv != 3 ? r->ch : ' ', r->sel, r->clr,
+                 r->g ? r->g : ' ', r->s);
         }
     }
     js_text(3, tbuf);
@@ -568,6 +581,14 @@ static int obj_color(struct nh_objitem *it)
     return pal(di->objects[it->otype - 1].color);
 }
 
+/* the item's own map symbol (text mode shows it where tiles show the icon) */
+static char obj_glyph(struct nh_objitem *it)
+{
+    char c = it->otype > 0 && it->otype <= di->num_objects ? di->objects[it->otype - 1].ch : ' ';
+
+    return c > ' ' && c != '\t' ? c : ' ';
+}
+
 static void set_next(const char *name, char invlet)
 {
     snprintf(next_cmd, sizeof next_cmd, "%s", name);
@@ -632,6 +653,7 @@ static int web_display_objects(struct nh_objitem *items, int icount, const char 
         r->sel = items[i].role == MI_NORMAL && items[i].id ? 0 : 2;
         r->clr = r->sel == 2 ? CLR_YELLOW : obj_color(&items[i]);
         r->tile = obj_tile(&items[i]);
+        r->g = r->sel == 2 ? ' ' : obj_glyph(&items[i]);
         r->ch = items[i].accel;
     }
     n = run_pop(&p, how);
@@ -665,9 +687,10 @@ static nh_bool web_list_items(struct nh_objitem *items, int icount, nh_bool inve
     for (i = 0; i < icount; i++) {
         int head = items[i].role != MI_NORMAL;
 
-        tadd("%d\t%c\t%d\t%d\t%s\n", head ? -1 : obj_tile(&items[i]),
+        tadd("%d\t%c\t%d\t%d\t%c\t%s\n", head ? -1 : obj_tile(&items[i]),
              items[i].accel ? items[i].accel : ' ', head ? 2 : 0,
-             head ? CLR_YELLOW : obj_color(&items[i]), items[i].caption);
+             head ? CLR_YELLOW : obj_color(&items[i]), head ? ' ' : obj_glyph(&items[i]),
+             items[i].caption);
     }
     free(invtext);
     invtext = strdup(tbuf);
@@ -687,7 +710,7 @@ static void show_lines(const char *title, const char *buf)
         if (p.n == cap)
             p.rows = realloc(p.rows, (cap = cap * 2 + 16) * sizeof(struct row));
         p.rows[p.n].s = strndup(s, e - s);
-        p.rows[p.n].ch = 0, p.rows[p.n].sel = 2, p.rows[p.n].clr = CLR_GRAY, p.rows[p.n].tile = -1;
+        p.rows[p.n].ch = 0, p.rows[p.n].g = 0, p.rows[p.n].sel = 2, p.rows[p.n].clr = CLR_GRAY, p.rows[p.n].tile = -1;
         p.n++;
         s = *e ? e + 1 : e;
     }
@@ -990,8 +1013,8 @@ static struct nh_cmd_desc *cmd_menu(const char *title)
 {
     static const char *const heads[] = { "Moving", "Items", "Actions", "Information (no game time)" };
     static const struct { int key; const char *desc; } extra[] = {
-        { '<', "go up the stairs (off them: walk to the nearest known)" },
-        { '>', "go down the stairs (off them: walk to the nearest known)" },
+        { '<', "go up the stairs (off them: walk to the nearest known, press again to take them)" },
+        { '>', "go down the stairs (off them: walk to the nearest known, press again to take them)" },
         { '#', "type an extended command" },
     };
     struct nh_menuitem *items = calloc(ncmds + 8, sizeof *items);
@@ -1008,13 +1031,9 @@ static struct nh_cmd_desc *cmd_menu(const char *title)
         for (i = 0; i < ncmds; i++) {
             unsigned char c = cmds[i].defkey ? cmds[i].defkey : cmds[i].altkey;
 
-            if ((cmds[i].flags & CMD_DEBUG) || cmd_group(&cmds[i]) != g)
-                continue;
-            if (!strcmp(cmds[i].name, "move"))
-                strcpy(k, "hjklyubn");
-            else if (!strcmp(cmds[i].name, "run"))
-                strcpy(k, "HJKLYUBN");
-            else if (!c)
+            if ((cmds[i].flags & CMD_DEBUG) || (cmds[i].flags & CMD_MOVE) || cmd_group(&cmds[i]) != g)
+                continue; /* no steps or runs in the menu (RVIP finetuning) */
+            if (!c)
                 snprintf(k, sizeof k, "#%s", cmds[i].name);
             else if (c < 32)
                 snprintf(k, sizeof k, "^%c", c + 64);
@@ -1156,14 +1175,20 @@ static int commandloop(void)
     const char *cmd;
     struct nh_cmd_arg arg;
 
+    int exploring = 0;
+
     while (state < GAME_OVER) {
         count = 0;
         cmd = NULL;
         arg.argtype = CMD_ARG_NONE;
-        if (state == READY_FOR_INPUT)
+        if (state == READY_FOR_INPUT) {
             cmd = get_command(&count, &arg);
-        else {
-            yield_sometimes();
+            exploring = cmd && !strcmp(cmd, "autoexplore");
+        } else {
+            if (exploring)
+                web_delay_step(); /* auto-explore: each step gets painted */
+            else
+                yield_sometimes();
             if (state == MULTI_IN_PROGRESS && js_key(1, 0) > 0)
                 count = -1; /* a key interrupts a multi-turn action */
         }
