@@ -8,7 +8,8 @@ Matching is by name: the game's nh_get_drawing_info() names (dumped by
 tiledump.c) against the tile file names; BG/TRAP/EFFECT/MON/DSM/OBJ/LOOK hold the stand-ins for
 symbols the 3.4.3 set has no tile for (from the same set, never another).
 The monster/object tile background (71,108,108) becomes transparent so C
-can put the floor tile under them.  Prints coverage per class; fails < 95%.
+can put the floor tile under them.  Prints coverage per class; fails unless every symbol has a tile
+(real or same-set stand-in) and real coverage stays >= 88%.
 """
 import re, sys
 from PIL import Image
@@ -80,7 +81,7 @@ DSM = {'magic': 'gray', 'reflecting': 'silver', 'fire': 'red', 'ice': 'white', '
        'acid': 'yellow', 'chromatic': 'shimmering'}
 MON = {'locust': 'killer bee', 'enormous rat': 'giant rat', 'rodent of unusual size': 'giant rat',
        'disintegrator': 'rust monster', 'miner': 'watchman', 'prison guard': 'watchman',
-       'lava demon': 'fire elemental', 'giant turtle': 'crocodile', 'convict': 'prisoner',
+       'lava demon': 'efreeti', 'giant turtle': 'crocodile', 'convict': 'prisoner',
        'Robert the Lifer': 'prisoner', 'Warden Arianna': 'watch captain', 'Tiamat': 'Chromatic Dragon',
        'chromatic dragon': 'Chromatic Dragon', 'inmate': 'prisoner'}
 for k, c in DRAGON.items():
@@ -101,13 +102,14 @@ LOOK = {4: {'quartz': 'glass', 'porcelain': 'ivory', 'ceramic': 'clay', 'mithril
              'cedar': 'pine', 'chrome': 'steel', 'titanium': 'aluminum', 'nickel': 'zinc', 'mithril': 'silver',
              'grooved': 'runed', 'bent': 'curved', 'plastic': 'glass', 'bone': 'marble', 'alabaster': 'marble',
              'orichalcum': 'bronze', 'electrum': 'brass'}}
-GENERIC = {'obj': 'strange object', 'mon': 'giant ant'}   # last resort per kind
+GENERIC = {'obj': 'strange object', 'mon': 'giant ant'}   # last resort per kind (build fails if used)
 
-gaps, table, cov = [], {}, {}
+gaps, table, cov, generic = [], {}, {}, []
 def put(kind, idx, t, name, alias=False):
     if t is None:
         t = find('monsters' if kind == 'mon' else 'objects', GENERIC[kind])
         alias = True
+        generic.append(name)
     table.setdefault(kind, {})[idx] = t
     c = cov.setdefault(kind, [0, 0])
     c[1] += 1
@@ -187,10 +189,13 @@ hit = tot = 0
 for k, (h, n) in cov.items():
     print(f'tiles {k}: {h}/{n} = {100 * h / n:.1f}%')
     hit += h; tot += n
-print(f'tiles total: {hit}/{tot} = {100 * hit / tot:.1f}%, stand-ins: ' + '; '.join(gaps))
-# ponytail: floor = today's exact-name coverage (stage 1's 96.6% counted object
-# classes, not appearances); the RVIP 95% goal needs tiles the set does not have
-assert hit / tot >= .88, 'tile coverage dropped'
+print(f'tiles total: {tot}/{tot} = 100% with a tile: {hit} real ({100 * hit / tot:.1f}%) + '
+      f'{len(gaps)} stand-ins from the same set: ' + '; '.join(gaps))
+# every symbol gets a same-family tile of this one set (user rule); real
+# 3.4.3 tiles cover 88.3% (DynaHack's extra appearances/monsters have none,
+# and DynaHack/NitroHack upstream ship no tiles)
+assert not generic, f'no same-family stand-in for: {generic}'
+assert hit / tot >= .88, 'real tile coverage dropped'
 
 img = Image.new('RGBA', (PER_ROW * 16, -(-len(tiles) // PER_ROW) * 16))
 px = img.load()

@@ -238,9 +238,14 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   objects 445/538, warnings/explosions/zaps/invisible/swallow 100 %, effects
   8/9 → **1000/1132 = 88.3 %** exact. Stage 1's 96.6 % was wrong: it counted
   object names, not appearances (DynaHack has ~50 extra random appearances:
-  scroll labels, ring gems, wand materials, potion/spellbook colours). Build
-  fails below 88 % (`ponytail:` note in mktiles.py). Below the RVIP 95 % goal;
-  3.4.3-style is already the fallback set, so kept — user may decide.
+  scroll labels, ring gems, wand materials, potion/spellbook colours).
+  **2026-09-29, user decision:** upstream checked first — the official
+  DynaHack (github.com/tung/DynaHack) and NitroHack (github.com/DanielT/NitroHack)
+  trees have no tile files at all (curses/tty only), so no real tiles exist
+  for the gaps. Every gap is filled from the same set, same family: **1132/1132
+  with a tile = 1000 real (88.3 %) + 132 stand-ins** (build prints the list).
+  Build fails if any symbol falls through to the generic last-resort tile or
+  real coverage drops below 88 %.
 - **Stand-ins (all from the same set, printed by the build):** swamp → water,
   dead tree → tree, magic chest → chest (object tile), vibrating square → magic
   trap, shuriken trap → dart trap, gas cloud → cloud; dragons by colour/breath:
@@ -248,7 +253,7 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   sirrush black, leviathan blue, wyvern green, gold dragon + guivre yellow (and
   their babies), chromatic dragon + Tiamat → Chromatic Dragon; locust → killer
   bee, enormous rat / rodent of unusual size → giant rat, disintegrator → rust
-  monster, miner / prison guard → watchman, lava demon → fire elemental, giant
+  monster, miner / prison guard → watchman, lava demon → efreeti (red `&`; was fire elemental, another class), giant
   turtle → crocodile, convict / inmate / Robert the Lifer → prisoner, Warden
   Arianna → watch captain; the 11 effect-named dragon scale (mail)s → the colour
   above (chromatic → shimmering); tinfoil hat → dented pot, striped shirt →
@@ -286,7 +291,7 @@ build of the web client makes native ASan cheap; `DIR` is a libc type name.
   zaps/swallow. Engravings: DynaHack's dbuf has no engraving layer, nothing to
   show. Wall variants: not exposed by the API (`dgnflags` bghints only) → plain
   walls everywhere, also Sokoban/Mines.
-- **Open:** coverage 88.3 % < 95 % (see above); no pet marker (optional); magic
+- **Open:** real coverage 88.3 % (rest same-set stand-ins, user-approved); no pet marker (optional); magic
   chest in item lists uses the library's `otype = CHEST` (not +1) → shows as
   the tile before (library quirk, rare).
 - **Next: stage 5 (web page):** window layout (Visible, Equipment windows),
