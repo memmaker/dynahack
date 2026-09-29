@@ -65,7 +65,4 @@ cp web/index.html web/dynahack.js \
 	 "$OUT/"
 python3 web/mksounds.py "$OUT/sound"      # synthesized effects + town loop (CC0)
 python3 web/make-help.py > "$OUT/help.html"
-# text fonts: the index page's fonts/ (served at ../fonts/ next to the games); [] if not here
-FONTS=${RVIP_FONTS:-$HOME/Games/roguelikes-index/fonts}
-(cd "$FONTS" 2>/dev/null && ls *.woff 2>/dev/null | sed 's/\.woff$//') | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().split()))' > "$OUT/fonts.json"
 ls -la "$OUT"

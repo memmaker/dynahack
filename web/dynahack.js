@@ -146,7 +146,7 @@
 		if (bs && mapSel.parentNode !== bs) bs.insertBefore(mapSel, bs.firstChild);
 		mapSel.hidden = !L.text;
 		mapSel.value = L.mapFace || '';
-		$('sel-font').value = L.face || '';     /* if fonts.json came before the layout */
+		$('sel-font').value = L.face || '';     /* if the font list came before the layout */
 	}
 	function makeWM() {
 		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, wm: s.wm, text: !!s.text, sound: s.sound === true, music: s.music === true,
@@ -319,9 +319,9 @@
 		$('chk-music').onchange = function () { toggleAudio('music'); };
 		RvipWM.dropdown($('btn-audio'), $('menu-audio'));
 		RvipWM.dropdown($('btn-file'), $('menu-file'));
-		fetch('fonts.json').then(function (r) { return r.json(); }).then(function (list) {
+		RvipWM.fonts.then(function (list) {
 			[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(function (a) {
-				list.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n.replace(/^Web(Plus|437)_/, '').replace(/_/g, ' '); a[0].appendChild(o); });
+				RvipWM.fontOptions(a[0]);
 				a[0].value = L[a[1]] || '';
 			});
 		}).catch(function () { });
